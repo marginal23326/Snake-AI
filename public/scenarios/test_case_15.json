@@ -1,0 +1,147 @@
+{
+  "id": 1770380293701,
+  "name": "Imported Test 15",
+  "expectedMove": "up",
+  "avoidList": [],
+  "rawRequest": {
+    "game": {
+      "id": 1,
+      "ruleset": {
+        "name": "standard",
+        "version": "v.1.2.3"
+      },
+      "timeout": 500
+    },
+    "turn": 0,
+    "board": {
+      "height": 20,
+      "width": 20,
+      "food": [
+        {
+          "x": 0,
+          "y": 19
+        }
+      ],
+      "hazards": [],
+      "snakes": [
+        {
+          "body": [
+            {
+              "x": 15,
+              "y": 19
+            },
+            {
+              "x": 16,
+              "y": 19
+            },
+            {
+              "x": 17,
+              "y": 19
+            },
+            {
+              "x": 18,
+              "y": 19
+            },
+            {
+              "x": 18,
+              "y": 18
+            },
+            {
+              "x": 18,
+              "y": 17
+            },
+            {
+              "x": 18,
+              "y": 16
+            },
+            {
+              "x": 18,
+              "y": 15
+            }
+          ],
+          "length": 8,
+          "health": 100,
+          "name": "2PQNUwoqUP",
+          "id": "PzC9lb2WWJ",
+          "head": {
+            "x": 15,
+            "y": 19
+          },
+          "latency": 10,
+          "squad": "",
+          "shout": ""
+        },
+        {
+          "body": [
+            {
+              "x": 19,
+              "y": 17
+            },
+            {
+              "x": 19,
+              "y": 16
+            },
+            {
+              "x": 19,
+              "y": 15
+            },
+            {
+              "x": 19,
+              "y": 14
+            },
+            {
+              "x": 19,
+              "y": 13
+            }
+          ],
+          "length": 5,
+          "health": 100,
+          "name": "zhu275JhfC",
+          "id": "HMB10qvCS4",
+          "head": {
+            "x": 19,
+            "y": 17
+          },
+          "latency": 10,
+          "squad": "",
+          "shout": ""
+        }
+      ]
+    },
+    "you": {
+      "body": [
+        {
+          "x": 19,
+          "y": 17
+        },
+        {
+          "x": 19,
+          "y": 16
+        },
+        {
+          "x": 19,
+          "y": 15
+        },
+        {
+          "x": 19,
+          "y": 14
+        },
+        {
+          "x": 19,
+          "y": 13
+        }
+      ],
+      "length": 5,
+      "health": 100,
+      "name": "zhu275JhfC",
+      "id": "HMB10qvCS4",
+      "head": {
+        "x": 19,
+        "y": 17
+      },
+      "latency": 10,
+      "squad": "",
+      "shout": ""
+    }
+  }
+}

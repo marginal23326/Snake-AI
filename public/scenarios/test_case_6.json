@@ -1,0 +1,160 @@
+{
+  "id": 1770380293516,
+  "name": "Imported Test 6",
+  "avoidList": [
+    "down"
+  ],
+  "rawRequest": {
+    "game": {
+      "id": 1,
+      "ruleset": {
+        "name": "standard",
+        "version": "v.1.2.3"
+      },
+      "timeout": 500
+    },
+    "turn": 0,
+    "board": {
+      "height": 20,
+      "width": 20,
+      "food": [
+        {
+          "x": 7,
+          "y": 19
+        }
+      ],
+      "hazards": [],
+      "snakes": [
+        {
+          "body": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0,
+              "y": 1
+            },
+            {
+              "x": 0,
+              "y": 2
+            }
+          ],
+          "length": 3,
+          "health": 100,
+          "name": "rEpdOM8erY",
+          "id": "xTzA8iqYar",
+          "head": {
+            "x": 0,
+            "y": 0
+          },
+          "latency": 10,
+          "squad": "",
+          "shout": ""
+        },
+        {
+          "body": [
+            {
+              "x": 11,
+              "y": 11
+            },
+            {
+              "x": 11,
+              "y": 12
+            },
+            {
+              "x": 12,
+              "y": 12
+            },
+            {
+              "x": 12,
+              "y": 11
+            },
+            {
+              "x": 12,
+              "y": 10
+            },
+            {
+              "x": 12,
+              "y": 9
+            },
+            {
+              "x": 11,
+              "y": 9
+            },
+            {
+              "x": 11,
+              "y": 10
+            },
+            {
+              "x": 11,
+              "y": 10
+            }
+          ],
+          "length": 9,
+          "health": 100,
+          "name": "KOm23uVo7R",
+          "id": "31hmhHTvz5",
+          "head": {
+            "x": 11,
+            "y": 11
+          },
+          "latency": 10,
+          "squad": "",
+          "shout": ""
+        }
+      ]
+    },
+    "you": {
+      "body": [
+        {
+          "x": 11,
+          "y": 11
+        },
+        {
+          "x": 11,
+          "y": 12
+        },
+        {
+          "x": 12,
+          "y": 12
+        },
+        {
+          "x": 12,
+          "y": 11
+        },
+        {
+          "x": 12,
+          "y": 10
+        },
+        {
+          "x": 12,
+          "y": 9
+        },
+        {
+          "x": 11,
+          "y": 9
+        },
+        {
+          "x": 11,
+          "y": 10
+        },
+        {
+          "x": 11,
+          "y": 10
+        }
+      ],
+      "length": 9,
+      "health": 100,
+      "name": "KOm23uVo7R",
+      "id": "31hmhHTvz5",
+      "head": {
+        "x": 11,
+        "y": 11
+      },
+      "latency": 10,
+      "squad": "",
+      "shout": ""
+    }
+  }
+}

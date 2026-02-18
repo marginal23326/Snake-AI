@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Snake AI Lab v5.0 - Grandmaster Edition</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="left-col">
+        <div class="stat-row" style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:16px;">
+            <span style="color: cyan">PLAYER: <b id="s1">0</b></span>
+            <span style="color: #ff0055">AI BOT: <b id="s2">0</b></span>
+        </div>
+
+        <div class="controls">
+            <button class="action" onclick="step()">STEP (SPACE)</button>
+            <button onclick="toggleAuto()" id="btn-auto">AUTO RUN</button>
+            <button class="danger" onclick="resetSim()">RESET BOARD</button>
+            <select id="p1-dir-sel" onchange="updateP1Dir()" style="background: #222; color: white; border: 1px solid #444;">
+                <option value="UP">P1: UP</option>
+                <option value="DOWN">P1: DOWN</option>
+                <option value="LEFT">P1: LEFT</option>
+                <option value="RIGHT">P1: RIGHT</option>
+            </select>
+            <button onclick="setMode('paint_p1')" id="btn-p1">PAINT P1</button>
+            <button onclick="setMode('paint_ai')" id="btn-ai">PAINT AI</button>
+            <button onclick="setMode('food')" id="btn-food">PLACE FOOD</button>
+            <button onclick="setMode('erase')" id="btn-erase">ERASER</button>
+        </div>
+        <div id="benchmark" style="font-family: monospace; color: #00ff00; background: #000; padding: 5px; margin-bottom: 5px; border-left: 3px solid #00ff00;">
+            Last Move: 0ms
+        </div>
+        <canvas id="c" width="640" height="360"></canvas>
+    </div>
+
+    <div class="right-col">
+        <div class="panel">
+            <span class="panel-title">MANUAL STATE JSON</span>
+            <textarea id="ioData" placeholder="Paste JSON here..."></textarea>
+            <div style="display: flex; gap: 5px">
+                <button style="flex: 1" onclick="copyState()">COPY CURRENT</button>
+                <button style="flex: 1" class="action" onclick="importFromTextArea()">LOAD JSON</button>
+            </div>
+            <div style="display: flex; gap: 5px; margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                <select id="expectedMoveSelect" style="flex: 2; background: #222; color: white; border: 1px solid #444; padding: 5px;">
+                    <option value="up">Expect: UP</option>
+                    <option value="down">Expect: DOWN</option>
+                    <option value="left">Expect: LEFT</option>
+                    <option value="right">Expect: RIGHT</option>
+                </select>
+                <button style="flex: 3" class="action" onclick="saveScenario()">SAVE TEST CASE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. LOAD AI MODULES IN ORDER -->
+    <script src="../ai/config.js"></script>
+    <script src="../ai/grid.js"></script>
+    <script src="../ai/floodfill.js"></script>
+    <script src="../ai/voronoi.js"></script>
+    <script src="../ai/tt.js"></script>
+    <script src="../ai/zobrist.js"></script>
+    <script src="../ai/pathfinding.js"></script>
+    <script src="../ai/heuristics.js"></script>
+    <script src="../ai/search.js"></script>
+    <script src="../ai/brain.js"></script>
+    
+    <!-- 2. VISUALIZER -->
+    <script src="visualizer.js"></script>
+
+    <!-- 3. MAIN LOGIC -->
+    <script>
+        // --- GLOBAL VARIABLES (Declared Top-Level to avoid ReferenceErrors) ---
+        // Alias imports from the Global Namespace
+        const DIRS = window.SnakeAI.DIRS;
+        const getSmartMoveDebug = window.SnakeAI.getSmartMoveDebug;
+
+        const GAME_CONFIG = {
+            FOOD_COUNT: 2,
+            INITIAL_SNAKE_HEALTH: 100,
+            MIN_SPACE_FOR_FOOD: 1
+        };
+
+        const gridSize = 20;
+        window.cols = 16;
+        window.rows = 9;
+
+        let player = { body: [], dir: DIRS.UP, score: 0, health: 100 };
+        let ai = { body: [], dir: DIRS.DOWN, score: 0, didEat: false, health: 100 };
+        let foods = [];
+        let mode = "paint_p1";
+        let isDrawing = false;
+        let autoInterval = null;
+        let isReplayMode = false; // Fixes ReferenceError
+        let currentSeed = 1;
+
+        function seededRandom() {
+            currentSeed = (currentSeed * 1664525 + 1013904223) % 4294967296;
+            return currentSeed / 4294967296;
+        }
+
+        function init() {
+            window.cols = 16;
+            window.rows = 9;
+            resizeCanvas();
+
+            player.body = [{ x: 5, y: 5 }, { x: 5, y: 4 }, { x: 5, y: 3 }];
+            player.dir = DIRS.UP;
+            player.score = 0;
+            player.health = GAME_CONFIG.INITIAL_SNAKE_HEALTH;
+
+            const startX = window.cols - 6;
+            const startY = window.rows - 6;
+            ai.body = [{ x: startX, y: startY }, { x: startX, y: startY + 1 }, { x: startX, y: startY + 2 }];
+            ai.dir = DIRS.DOWN;
+            ai.score = 0;
+            ai.health = GAME_CONFIG.INITIAL_SNAKE_HEALTH;
+
+            foods = [];
+            for (let i = 0; i < GAME_CONFIG.FOOD_COUNT; i++) {
+                placeFoodDeterministic();
+            }
+            
+            draw();
+            setMode("paint_p1");
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.cols * gridSize;
+            canvas.height = window.rows * gridSize;
+        }
+
+        function placeFoodDeterministic() {
+            let newFood = {};
+            for (let i = 0; i < 100; i++) {
+                const rx = seededRandom();
+                const ry = seededRandom();
+
+                newFood = {
+                    x: Math.floor(rx * window.cols),
+                    y: Math.floor(ry * window.rows),
+                };
+
+                // Check if occupied by snake OR already existing food
+                const isOccupiedBySnake = [...player.body, ...ai.body].some(p => p.x === newFood.x && p.y === newFood.y);
+                const isOccupiedByFood = foods.some(f => f.x === newFood.x && f.y === newFood.y);
+
+                if (!isOccupiedBySnake && !isOccupiedByFood) {
+                    foods.push(newFood);
+                    return; // Exit once one food is placed
+                }
+            }
+        }
+
+        function step() {
+            if (ai.body.length === 0 || player.body.length === 0) return;
+
+            const startTime = performance.now();
+            
+            // 1. Get Decisions
+            const aiDecision = getSmartMoveDebug(ai, player, foods, window.cols, window.rows);
+            
+            const endTime = performance.now();
+            const duration = (endTime - startTime).toFixed(2);
+            
+            // Update the UI
+            document.getElementById("benchmark").innerText = `Last Move: ${duration}ms`;
+
+            ai.dir = aiDecision.bestMove;
+            const logElement = document.getElementById("log");
+            if (logElement) {
+                logElement.innerText = aiDecision.logStr;
+            }
+
+            // 2. Calculate Next Heads
+            const nextAiHead = { x: ai.body[0].x + ai.dir.x, y: ai.body[0].y + ai.dir.y };
+            const nextP1Head = { x: player.body[0].x + player.dir.x, y: player.body[0].y + player.dir.y };
+
+            // 3. Determine "Will Eat" Status
+            // We must know if they eat BEFORE we check collisions, because eating freezes the tail.
+            const aiWillEat = foods.some(f => f.x === nextAiHead.x && f.y === nextAiHead.y);
+            const p1WillEat = foods.some(f => f.x === nextP1Head.x && f.y === nextP1Head.y);
+
+            let aiDead = false;
+            let p1Dead = false;
+
+            // 4. Check Wall Collisions
+            if (nextAiHead.x < 0 || nextAiHead.x >= window.cols || nextAiHead.y < 0 || nextAiHead.y >= window.rows) aiDead = true;
+            if (nextP1Head.x < 0 || nextP1Head.x >= window.cols || nextP1Head.y < 0 || nextP1Head.y >= window.rows) p1Dead = true;
+
+            // 5. Check Head-to-Head Collision
+            if (nextAiHead.x === nextP1Head.x && nextAiHead.y === nextP1Head.y) {
+                if (ai.body.length > player.body.length) {
+                    p1Dead = true;
+                } else if (player.body.length > ai.body.length) {
+                    aiDead = true;
+                } else {
+                    aiDead = true;
+                    p1Dead = true;
+                }
+            }
+
+            // 6. Check Body Collisions
+            const checkBodyHit = (head, body, keepTail) => {
+                const limit = keepTail ? body.length : body.length - 1;
+                for(let i = 0; i < limit; i++) {
+                    if (body[i].x === head.x && body[i].y === head.y) return true;
+                }
+                return false;
+            };
+
+            // AI vs Player Body (Does Player eat? If so, Player tail is solid)
+            if (!aiDead && checkBodyHit(nextAiHead, player.body, p1WillEat)) aiDead = true;
+            
+            // Player vs AI Body (Does AI eat? If so, AI tail is solid)
+            if (!p1Dead && checkBodyHit(nextP1Head, ai.body, aiWillEat)) p1Dead = true;
+
+            // Self Collisions
+            if (!aiDead && checkBodyHit(nextAiHead, ai.body, aiWillEat)) aiDead = true;
+            if (!p1Dead && checkBodyHit(nextP1Head, player.body, p1WillEat)) p1Dead = true;
+
+            // 7. Move & Update (Pass the pre-calculated eat status to avoid re-calculation issues)
+            if (!aiDead) {
+                updateSnakeBody(ai, nextAiHead, aiWillEat);
+                if (ai.health <= 0) aiDead = true; 
+            }
+            if (!p1Dead) {
+                updateSnakeBody(player, nextP1Head, p1WillEat);
+                if (player.health <= 0) p1Dead = true; 
+            }
+
+            // 8. Apply Death
+            if (aiDead) ai.body = [];
+            if (p1Dead) player.body = [];
+
+            draw();
+        }
+
+        function updateSnakeBody(snake, nextHead, didEat) {
+            snake.body.unshift(nextHead);
+            if (didEat) {
+                const foodIdx = foods.findIndex(f => f.x === nextHead.x && f.y === nextHead.y);
+                if (foodIdx !== -1) {
+                    foods.splice(foodIdx, 1); // Remove the eaten food
+                }
+                
+                snake.health = 100;
+                snake.score++;
+                
+                placeFoodDeterministic();
+            } else {
+                snake.body.pop(); // Tail moves forward
+                snake.health--;
+            }
+        }
+
+        function moveSnake(snake) {
+            if (snake.body.length === 0) return;
+            const head = { x: snake.body[0].x + snake.dir.x, y: snake.body[0].y + snake.dir.y };
+
+            if (head.x < 0 || head.x >= window.cols || head.y < 0 || head.y >= window.rows) {
+                snake.body = []; return;
+            }
+
+            const allSegs = [...player.body, ...ai.body];
+            for(let s of allSegs) {
+                if(s.x === head.x && s.y === head.y) {
+                    snake.body = []; return;
+                }
+            }
+
+            snake.body.unshift(head);
+            
+            const fIdx = foods.findIndex(f => f.x === head.x && f.y === head.y);
+            if (fIdx !== -1) {
+                snake.score++;
+                snake.health = 100;
+                foods.splice(fIdx, 1);
+                placeFoodDeterministic();
+            } else {
+                snake.body.pop();
+                snake.health--;
+                if(snake.health <= 0) snake.body = [];
+            }
+        }
+
+        function isOccupied(x, y) {
+            return [...player.body, ...ai.body].some(p => p.x === x && p.y === y) || 
+                   foods.some(f => f.x === x && f.y === y);
+        }
+
+        function draw() {
+            const canvas = document.getElementById('c');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = "#050505";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = "#1a1a1a";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i <= window.cols; i++) { ctx.moveTo(i * gridSize, 0); ctx.lineTo(i * gridSize, canvas.height); }
+            for (let i = 0; i <= window.rows; i++) { ctx.moveTo(0, i * gridSize); ctx.lineTo(canvas.width, i * gridSize); }
+            ctx.stroke();
+
+            ctx.fillStyle = "#ffff00";
+            foods.forEach(f => ctx.fillRect(f.x * gridSize + 2, (window.rows - 1 - f.y) * gridSize + 2, gridSize - 4, gridSize - 4));
+
+            const drawBody = (s, bodyColor, headColor) => {
+                if (!s.body || s.body.length === 0) return;
+                s.body.forEach((b, i) => {
+                    ctx.fillStyle = (i === 0) ? headColor : bodyColor;
+                    ctx.fillRect(b.x * gridSize + 1, (window.rows - 1 - b.y) * gridSize + 1, gridSize - 2, gridSize - 2);
+                });
+            };
+
+            drawBody(player, "#00ccff", "#ffffff");
+            drawBody(ai, "#ff0055", "#ffffff");
+
+            document.getElementById("s1").innerHTML = `${player.score} <small>(HP: ${player.health})</small>`;
+            document.getElementById("s2").innerHTML = `${ai.score} <small>(HP: ${ai.health})</small>`;
+        }
+        function setPlayerDir(newDir) {
+            if (player.body.length > 1) {
+                const head = player.body[0];
+                const neck = player.body[1];
+                const nextX = head.x + newDir.x;
+                const nextY = head.y + newDir.y;
+                if (nextX === neck.x && nextY === neck.y) {
+                    console.log("180 Degree turn blocked");
+                    return;
+                }
+            }
+            player.dir = newDir;
+        }
+        function updateP1Dir() { 
+            const val = document.getElementById("p1-dir-sel").value;
+            setPlayerDir(DIRS[val]); 
+        }
+        function toggleAuto() {
+            const btn = document.getElementById("btn-auto");
+            if (autoInterval) { 
+                clearInterval(autoInterval); 
+                autoInterval = null; 
+                btn.classList.remove("active");
+                btn.innerText = "AUTO RUN";
+            } else { 
+                autoInterval = setInterval(step, 300); 
+                btn.classList.add("active");
+                btn.innerText = "STOP";
+            }
+        }
+        function resetSim() { init(); }
+        
+        function setMode(m) {
+            mode = m;
+            ['btn-p1', 'btn-ai', 'btn-food', 'btn-erase'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.classList.toggle('active', id.includes(m.split('_')[1] || m));
+            });
+        }
+        
+        let lastX = -1;
+        let lastY = -1;
+
+        function getLinePath(x1, y1, x2, y2) {
+            let path = [];
+            let currX = x1;
+            let currY = y1;
+            path.push({ x: currX, y: currY });
+
+            while (currX !== x2 || currY !== y2) {
+                const dx = Math.sign(x2 - currX);
+                const dy = Math.sign(y2 - currY);
+                if (dx !== 0) currX += dx;
+                else if (dy !== 0) currY += dy;
+                path.push({ x: currX, y: currY });
+            }
+            return path;
+        }
+
+        function handleMouse(e, isNewClick) {
+            const canvas = document.getElementById('c');
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor(((e.clientX - rect.left) / rect.width) * window.cols);
+            const y = (window.rows - 1) - Math.floor(((e.clientY - rect.top) / rect.height) * window.rows);
+
+            if (x < 0 || x >= window.cols || y < 0 || y >= window.rows) return;
+            
+            let cellsToProcess = [{ x, y }];
+            if (!isNewClick && lastX !== -1 && (x !== lastX || y !== lastY)) {
+                cellsToProcess = getLinePath(lastX, lastY, x, y);
+            }
+
+            cellsToProcess.forEach(cell => {
+                const cx = cell.x;
+                const cy = cell.y;
+                if (mode === 'erase') {
+                    foods = foods.filter(f => f.x !== cx || f.y !== cy);
+                    player.body = player.body.filter(p => p.x !== cx || p.y !== cy);
+                    ai.body = ai.body.filter(p => p.x !== cx || p.y !== cy);
+                } 
+                else if (mode === 'food') {
+                    if (!foods.some(f => f.x === cx && f.y === cy)) foods.push({ x: cx, y: cy });
+                } 
+                else if (mode === 'paint_p1') {
+                    if (isNewClick && cellsToProcess.length === 1) player.body = [];
+                    const idx = player.body.findIndex(p => p.x === cx && p.y === cy);
+                    if (idx !== -1) player.body = player.body.slice(0, idx);
+                    player.body.push({ x: cx, y: cy });
+                } 
+                else if (mode === 'paint_ai') {
+                    if (isNewClick && cellsToProcess.length === 1) ai.body = [];
+                    const idx = ai.body.findIndex(p => p.x === cx && p.y === cy);
+                    if (idx !== -1) ai.body = ai.body.slice(0, idx);
+                    ai.body.push({ x: cx, y: cy });
+                }
+            });
+            lastX = x; lastY = y;
+            draw();
+        }
+
+        // Event Listeners
+        window.addEventListener("load", () => {
+            const canvas = document.getElementById('c');
+            canvas.addEventListener("mousedown", (e) => { isDrawing = true; handleMouse(e, true); });
+            canvas.addEventListener("mousemove", (e) => { if (isDrawing) handleMouse(e, false); });
+            window.addEventListener("mouseup", () => { isDrawing = false; lastX = -1; lastY = -1; });
+            
+            window.addEventListener("keydown", e => {
+                // Ignore input if focused on a textarea
+                if (e.target.tagName.toLowerCase() === 'textarea') return;
+                
+                const map = { 
+                    w: "UP", ArrowUp: "UP",
+                    a: "LEFT", ArrowLeft: "LEFT",
+                    s: "DOWN", ArrowDown: "DOWN",
+                    d: "RIGHT", ArrowRight: "RIGHT" 
+                };
+
+                // Check if it's one of your custom shortcuts
+                if(e.code === "Space" || map[e.key]) {
+                    // ONLY prevent default if it's a shortcut we are handling ourselves
+                    e.preventDefault(); 
+                }
+
+                if(e.code === "Space") {
+                    step();
+                } else if(map[e.key]) {
+                    setPlayerDir(DIRS[map[e.key]]);
+                    document.getElementById("p1-dir-sel").value = map[e.key];
+                }
+
+                if (e.key === "m" || e.key === "M") window.SnakeAI.runDebugAnalysis();
+            });
+            
+            init();
+        });
+
+
+        /**
+         * Converts the current visualizer state into the Battlesnake rawRequest format.
+         * The 'ai' (pink snake) is designated as 'you' for the test case.
+         */
+        function convertStateToRawRequest() {
+            const youSnake = {
+                id: 'ai-snake-for-test',
+                name: 'Test Target AI',
+                head: ai.body.length > 0 ? ai.body[0] : {x:-1,y:-1},
+                body: ai.body,
+                length: ai.body.length,
+                health: ai.health
+            };
+
+            const allSnakes = [youSnake];
+            if (player.body.length > 0) {
+                allSnakes.push({
+                    id: 'player-opponent-for-test',
+                    name: 'Test Opponent',
+                    head: player.body[0],
+                    body: player.body,
+                    length: player.body.length,
+                    health: player.health
+                });
+            }
+
+            return {
+                board: {
+                    height: window.rows,
+                    width: window.cols,
+                    snakes: allSnakes,
+                    food: foods
+                },
+                you: youSnake
+            };
+        }
+
+        /**
+         * Bundles the current state and expected move into a JSON file and triggers a download.
+         */
+        function saveScenario() {
+            const expectedMove = document.getElementById('expectedMoveSelect').value;
+            if (!expectedMove) {
+                alert("Please select an expected move from the dropdown.");
+                return;
+            }
+
+            const rawRequest = convertStateToRawRequest();
+            const scenarioId = Date.now();
+            const scenarioData = {
+                id: scenarioId,
+                name: `Scenario ${scenarioId}`,
+                expectedMove: expectedMove,
+                rawRequest: rawRequest
+            };
+
+            const jsonString = JSON.stringify(scenarioData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `scenario_${scenarioId}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert('Scenario file is being downloaded.\n\nMove it to the /public/scenarios/ folder to include it in your test suite.');
+        }
+
+        // --- END OF NEW FUNCTIONS ---
+
+        function copyState() {
+            const data = { 
+                p: player.body, a: ai.body, foods: foods,
+                pHealth: player.health, aHealth: ai.health,
+                cols: window.cols, rows: window.rows
+            };
+            const str = JSON.stringify(data, null, 2);
+            document.getElementById("ioData").value = str;
+            navigator.clipboard.writeText(str);
+            alert("State copied!");
+        }
+
+        function importFromTextArea() {
+            try {
+                const txt = document.getElementById("ioData").value;
+                const data = JSON.parse(txt);
+                
+                if (data.board || data.rawRequest) {
+                    loadScenario(data);
+                    return;
+                }
+
+                player.body = data.p || data.player || [];
+                ai.body = data.a || data.ai || [];
+                foods = Array.isArray(data.foods || data.f) ? (data.foods || data.f) : [];
+                player.health = data.pHealth || 100;
+                ai.health = data.aHealth || 100;
+
+                if (data.cols) window.cols = data.cols;
+                if (data.rows) window.rows = data.rows;
+                resizeCanvas();
+                if (data.seed !== undefined) window.currentSeed = data.seed;
+                
+                draw();
+                alert("State loaded successfully!");
+            } catch (e) {
+                console.error(e);
+                alert("Invalid JSON: " + e.message);
+            }
+        }
+        function loadScenario(jsonRaw) {
+            const req = jsonRaw.rawRequest || (jsonRaw.board ? jsonRaw : null);
+            if (!req) { alert("Could not find Battlesnake board data in this JSON."); return; }
+
+            const board = req.board;
+            const you = req.you;
+
+            window.cols = board.width;
+            window.rows = board.height;
+            resizeCanvas();
+
+            foods = board.food.map(f => ({ x: f.x, y: f.y }));
+
+            // The 'you' snake in a test scenario is always our AI (pink)
+            ai.body = you.body.map(p => ({ x: p.x, y: p.y }));
+            ai.health = you.health;
+            ai.score = 0;
+            ai.dir = calcInitialDir(ai.body);
+
+            // The other snake is the player (blue)
+            const opponent = board.snakes.find(s => s.id !== you.id);
+            if (opponent) {
+                player.body = opponent.body.map(p => ({ x: p.x, y: p.y }));
+                player.health = opponent.health;
+                player.score = 0;
+                player.dir = calcInitialDir(player.body);
+            } else {
+                player.body = [];
+                player.health = 0;
+            }
+
+            draw();
+            const decision = getSmartMoveDebug(ai, player, foods, window.cols, window.rows);
+            const logElement = document.getElementById("log");
+            if (logElement) {
+                logElement.innerText = "Scenario Loaded. AI initial thought: " + decision.bestMove.name;
+            }
+        }
+
+        function calcInitialDir(body) {
+            if (!body || body.length < 2) return DIRS.UP;
+            const head = body[0];
+            const neck = body[1];
+            if (head.x > neck.x) return DIRS.RIGHT;
+            if (head.x < neck.x) return DIRS.LEFT;
+            if (head.y > neck.y) return DIRS.UP;
+            return DIRS.DOWN;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+{
+  "id": 1770380308687,
+  "name": "Imported Test 30",
+  "expectedMove": "up",
+  "avoidList": [],
+  "rawRequest": {
+    "board": {
+      "height": 11,
+      "width": 11,
+      "food": [],
+      "snakes": [
+        {
+          "id": "me",
+          "name": "me",
+          "health": 92,
+          "body": [
+            {
+              "x": 10,
+              "y": 5
+            },
+            {
+              "x": 9,
+              "y": 5
+            },
+            {
+              "x": 8,
+              "y": 5
+            }
+          ],
+          "head": {
+            "x": 10,
+            "y": 5
+          },
+          "length": 3
+        },
+        {
+          "id": "opp",
+          "name": "opp",
+          "health": 96,
+          "body": [
+            {
+              "x": 10,
+              "y": 4
+            },
+            {
+              "x": 9,
+              "y": 4
+            },
+            {
+              "x": 8,
+              "y": 4
+            }
+          ],
+          "head": {
+            "x": 5,
+            "y": 9
+          },
+          "length": 4
+        }
+      ]
+    },
+    "you": {
+      "head": {
+        "x": 10,
+        "y": 5
+      },
+      "body": [
+        {
+          "x": 10,
+          "y": 5
+        },
+        {
+          "x": 9,
+          "y": 5
+        },
+        {
+          "x": 8,
+          "y": 5
+        }
+      ],
+      "length": 3,
+      "id": "me",
+      "health": 92
+    }
+  }
+}

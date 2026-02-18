@@ -1,0 +1,36 @@
+{
+  "id": 1770380308604,
+  "name": "Imported Test 26",
+  "expectedMove": "up",
+  "avoidList": [],
+  "rawRequest": {
+    "board": {
+      "height": 11,
+      "width": 11,
+      "snakes": [],
+      "food": []
+    },
+    "you": {
+      "head": {
+        "x": 10,
+        "y": 0
+      },
+      "body": [
+        {
+          "x": 10,
+          "y": 0
+        },
+        {
+          "x": 9,
+          "y": 0
+        },
+        {
+          "x": 8,
+          "y": 0
+        }
+      ],
+      "length": 3,
+      "health": 100
+    }
+  }
+}

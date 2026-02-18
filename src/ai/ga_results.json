@@ -1,0 +1,278 @@
+{
+  "bestChromosome": {
+    "TRAP_DANGER": -167851244,
+    "STRATEGIC_SQUEEZE": -49293830,
+    "ENEMY_TRAPPED": 123914592,
+    "HEAD_ON_COLLISION": -169301651,
+    "TIGHT_SPOT": -76786.24,
+    "LENGTH": 3299.94,
+    "EAT_REWARD": 4761.59,
+    "TERRITORY_CONTROL": 3771.18,
+    "KILL_PRESSURE": 226090.15,
+    "FOOD_INTENSITY": 1603.24,
+    "FOOD_THRESHOLD": 12.91,
+    "FOOD_EXPONENT": 1.72,
+    "AGGRESSION": 8332.11
+  },
+  "bestFitness": 317.47352941176473,
+  "bestStats": {
+    "score": 317.47352941176473,
+    "wins": 12,
+    "draws": 0,
+    "losses": 0,
+    "avgT": 380.25,
+    "avgL": 26
+  },
+  "validation": {
+    "score": 184.97436974789915,
+    "wins": 8,
+    "draws": 0,
+    "losses": 6,
+    "avgT": 316.57142857142856,
+    "avgL": 19.642857142857142
+  },
+  "history": [
+    {
+      "gen": 1,
+      "best": 277.1404411764706,
+      "avg": 108.90640731935173,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 2,
+      "fullMatchups": 8,
+      "selfPoolSize": 0
+    },
+    {
+      "gen": 2,
+      "best": 266.4838235294118,
+      "avg": 169.62464201865612,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 1
+    },
+    {
+      "gen": 3,
+      "best": 245.51274509803923,
+      "avg": 150.46852900064383,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 2
+    },
+    {
+      "gen": 4,
+      "best": 264.1612745098039,
+      "avg": 176.08561942799963,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 3
+    },
+    {
+      "gen": 5,
+      "best": 265.85343137254904,
+      "avg": 157.04188845327567,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 4
+    },
+    {
+      "gen": 6,
+      "best": 241.0328431372549,
+      "avg": 167.02413126653235,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 7,
+      "best": 264.1470588235294,
+      "avg": 169.99926138192606,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 8,
+      "best": 240.7441176470588,
+      "avg": 185.21341798050412,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 9,
+      "best": 194.2485294117647,
+      "avg": 152.9946991207261,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 10,
+      "best": 243.24460784313726,
+      "avg": 156.40327847056022,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 11,
+      "best": 218.27205882352942,
+      "avg": 214.2870569516172,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 6
+    },
+    {
+      "gen": 12,
+      "best": 262.3627450980392,
+      "avg": 154.11874112153785,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 6
+    },
+    {
+      "gen": 13,
+      "best": 238.73676470588236,
+      "avg": 159.9821197394018,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 6
+    },
+    {
+      "gen": 14,
+      "best": 264.5240196078431,
+      "avg": 184.4155089239479,
+      "bestEver": 277.1404411764706,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 6
+    },
+    {
+      "gen": 15,
+      "best": 317.47352941176473,
+      "avg": 164.2274473065458,
+      "bestEver": 317.47352941176473,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 6
+    },
+    {
+      "gen": 16,
+      "best": 241.62107843137255,
+      "avg": 169.94744466487523,
+      "bestEver": 317.47352941176473,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 7
+    },
+    {
+      "gen": 17,
+      "best": 266.2656862745098,
+      "avg": 134.5109240073617,
+      "bestEver": 317.47352941176473,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 7
+    },
+    {
+      "gen": 18,
+      "best": 242.86323529411766,
+      "avg": 188.33145940924553,
+      "bestEver": 317.47352941176473,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 7
+    },
+    {
+      "gen": 19,
+      "best": 217.58970588235294,
+      "avg": 147.72411840806993,
+      "bestEver": 317.47352941176473,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 7
+    },
+    {
+      "gen": 20,
+      "best": 262.37254901960785,
+      "avg": 112.20422103084631,
+      "bestEver": 317.47352941176473,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 12,
+      "selfPoolSize": 7
+    }
+  ],
+  "settings": {
+    "POP": 24,
+    "GENS": 20,
+    "ELITE": 2,
+    "GPO": 5,
+    "HTTP_GPO": 8,
+    "SELF_GAMES": 4,
+    "MR": 0.25,
+    "MS": 0.12,
+    "TK": 3,
+    "BW": 16,
+    "BH": 9,
+    "MT": 850,
+    "DEPTH": 6,
+    "legacyHttp": false,
+    "legacyHttpPorts": [
+      7000,
+      8000
+    ],
+    "stagedEval": {
+      "enabled": true,
+      "quickGames": 4,
+      "quickHttpGames": 2,
+      "quickSelfGames": 2,
+      "quickTurnRatio": 0.55,
+      "refineTopFrac": 0.35
+    },
+    "progress": {
+      "level": 0,
+      "every": 1
+    },
+    "selfPlay": {
+      "enabled": true,
+      "snapshotEvery": 5,
+      "recentCount": 5,
+      "hofCount": 4,
+      "maxPool": 8
+    },
+    "opponents": [
+      "http://localhost:7000 (legacy) x8"
+    ]
+  }
+}

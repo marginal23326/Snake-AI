@@ -1,0 +1,87 @@
+{
+  "id": 1770380308797,
+  "name": "Imported Test 35",
+  "avoidList": [
+    "up"
+  ],
+  "rawRequest": {
+    "board": {
+      "height": 11,
+      "width": 11,
+      "hazards": [],
+      "food": [],
+      "snakes": [
+        {
+          "head": {
+            "x": 9,
+            "y": 2
+          },
+          "body": [
+            {
+              "x": 9,
+              "y": 2
+            },
+            {
+              "x": 9,
+              "y": 1
+            },
+            {
+              "x": 9,
+              "y": 0
+            }
+          ],
+          "length": 3,
+          "id": "us",
+          "health": 99
+        },
+        {
+          "id": "them",
+          "name": "them",
+          "health": 99,
+          "length": 3,
+          "head": {
+            "x": 9,
+            "y": 4
+          },
+          "body": [
+            {
+              "x": 9,
+              "y": 4
+            },
+            {
+              "x": 9,
+              "y": 5
+            },
+            {
+              "x": 9,
+              "y": 6
+            }
+          ]
+        }
+      ]
+    },
+    "you": {
+      "head": {
+        "x": 9,
+        "y": 2
+      },
+      "body": [
+        {
+          "x": 9,
+          "y": 2
+        },
+        {
+          "x": 9,
+          "y": 1
+        },
+        {
+          "x": 9,
+          "y": 0
+        }
+      ],
+      "length": 3,
+      "id": "us",
+      "health": 99
+    }
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "id": 1770380293415,
+  "name": "Imported Test 1",
+  "avoidList": [],
+  "rawRequest": {
+    "game": {
+      "id": 1,
+      "ruleset": {
+        "name": "standard",
+        "version": "v.1.2.3"
+      },
+      "timeout": 500
+    },
+    "turn": 0,
+    "board": {
+      "height": 15,
+      "width": 15,
+      "food": [
+        {
+          "x": 7,
+          "y": 7
+        }
+      ],
+      "hazards": [],
+      "snakes": [
+        {
+          "body": [
+            {
+              "x": 7,
+              "y": 8
+            },
+            {
+              "x": 6,
+              "y": 8
+            },
+            {
+              "x": 5,
+              "y": 8
+            }
+          ],
+          "length": 3,
+          "health": 100,
+          "name": "XFd2zUlvYj",
+          "id": "3QlW3wC11i",
+          "head": {
+            "x": 7,
+            "y": 8
+          },
+          "latency": 10,
+          "squad": "",
+          "shout": ""
+        },
+        {
+          "body": [
+            {
+              "x": 11,
+              "y": 11
+            },
+            {
+              "x": 11,
+              "y": 12
+            },
+            {
+              "x": 11,
+              "y": 13
+            }
+          ],
+          "length": 3,
+          "health": 100,
+          "name": "876wTRv0kU",
+          "id": "apPa5S4YqF",
+          "head": {
+            "x": 11,
+            "y": 11
+          },
+          "latency": 10,
+          "squad": "",
+          "shout": ""
+        }
+      ]
+    },
+    "you": {
+      "body": [
+        {
+          "x": 11,
+          "y": 11
+        },
+        {
+          "x": 11,
+          "y": 12
+        },
+        {
+          "x": 11,
+          "y": 13
+        }
+      ],
+      "length": 3,
+      "health": 100,
+      "name": "876wTRv0kU",
+      "id": "apPa5S4YqF",
+      "head": {
+        "x": 11,
+        "y": 11
+      },
+      "latency": 10,
+      "squad": "",
+      "shout": ""
+    }
+  }
+}
