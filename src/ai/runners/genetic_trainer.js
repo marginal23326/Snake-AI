@@ -12,7 +12,7 @@
  *   --mutRate=F       Mutation probability          (default 0.25)
  *   --mutStr=F        Mutation strength             (default 0.15)
  *   --tourney=N       Tournament selection size     (default 3)
- *   --save=FILE       Output JSON file             (default ga_results.json)
+ *   --save=FILE       Output JSON file             (default src/ai/data/ga_results.json)
  *   --opponent=URL    Add an HTTP opponent         (repeatable)
  *   --onlyHttp=1      Use only HTTP opponents      (skip built-ins)
  *   --httpGames=N     Games per HTTP opponent      (default --games)
@@ -36,19 +36,25 @@
  *   --verifyMaxAttempts=N Max retries replacing failed candidates (default config)
  *   --legacyHttp=1    Force legacy payload transform for HTTP opponents
  *   --resume=FILE     Load progress from a checkpoint file
- *   --checkpoint=FILE File to save periodic progress (default ga_checkpoint.json)
+ *   --checkpoint=FILE File to save periodic progress (default src/ai/data/ga_checkpoint.json)
  */
 
-const { getSmartMoveDebug } = require('./brain');
-const Config = require('./config');
+const { getSmartMoveDebug } = require('../brain');
+const Config = require('../config');
 const http   = require('http');
 const fs     = require('fs');
-const { loadScenarios, runRegressionSuite } = require('../../test-suite');
+const path   = require('path');
+const { loadScenarios, runRegressionSuite } = require('../test/regression_suite');
 const {
     STANDARD_FOOD_SETTINGS,
     placeInitialStandardFood,
     applyStandardFoodSpawning
-} = require('./standard_food');
+} = require('../standard_food');
+
+const DATA_DIR = path.resolve(__dirname, '..', 'data');
+const DEFAULT_SAVE_FILE = path.join(DATA_DIR, 'ga_results.json');
+const DEFAULT_CHECKPOINT_FILE = path.join(DATA_DIR, 'ga_checkpoint.json');
+const DEFAULT_BEST_FILE = path.join(DATA_DIR, 'checkpoint_best.json');
 
 //  GENE DEFINITIONS
 //  Each gene maps to one tunable parameter in Config.
@@ -846,6 +852,8 @@ function configBlock(c) {
 //  MAIN TRAINING LOOP
 
 async function train(opts) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+
     const GA = Config.GA || {};
     const POP    = Math.max(2, Math.floor(withDefault(opts.pop, 30)));
     const GENS   = Math.max(1, Math.floor(withDefault(opts.gens, 25)));
@@ -858,9 +866,9 @@ async function train(opts) {
     const BH     = Math.max(3, Math.floor(withDefault(opts.height, 9)));
     const MT     = Math.max(20, Math.floor(withDefault(opts.maxTurns, 500)));
     const DEPTH  = Math.max(1, Math.floor(withDefault(opts.depth, 6)));
-    const SAVE   = opts.save !== undefined ? opts.save : 'ga_results.json';
+    const SAVE   = opts.save !== undefined ? opts.save : DEFAULT_SAVE_FILE;
     const RESUME_FILE = opts.resume;
-    const CHECKPOINT_FILE = opts.checkpoint || 'ga_checkpoint.json';
+    const CHECKPOINT_FILE = opts.checkpoint || DEFAULT_CHECKPOINT_FILE;
 
     const H_URLS = opts.opponents || [];
     const ONLY_HTTP = !!withDefault(opts.onlyHttp, 0);
@@ -1265,7 +1273,7 @@ async function train(opts) {
                 bestInfo.bestChromosome[GENES[i].name] =
                     GENES[i].isInt ? Math.round(bestEver[i]) : bestEver[i];
             }
-            fs.writeFileSync('checkpoint_best.json', JSON.stringify(bestInfo, null, 2));
+            fs.writeFileSync(DEFAULT_BEST_FILE, JSON.stringify(bestInfo, null, 2));
 
             history.push({
                 gen: gen + 1,

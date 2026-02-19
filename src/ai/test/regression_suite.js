@@ -1,10 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const Config = require('./src/ai/config');
-const { getSmartMoveDebug } = require('./src/ai/brain');
-const { convertRequestToState } = require('./src/ai/adapter');
+const Config = require('../config');
+const { getSmartMoveDebug } = require('../brain');
+const { convertRequestToState } = require('../adapter');
 
-const DEFAULT_SCENARIO_DIR = path.join(__dirname, 'public/scenarios');
+const DEFAULT_SCENARIO_DIR = path.resolve(__dirname, '../../../public/scenarios');
 
 function loadScenarios(scenarioDir = DEFAULT_SCENARIO_DIR) {
     let files = [];

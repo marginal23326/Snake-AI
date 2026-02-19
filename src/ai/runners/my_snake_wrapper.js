@@ -1,10 +1,21 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const { getSmartMoveDebug } = require('./brain');
-const Config = require('./config');
+const { getSmartMoveDebug } = require('../brain');
+const Config = require('../config');
 
 const app = express();
 app.use(bodyParser.json());
+
+function getCliOption(name, fallback) {
+    const args = process.argv.slice(2);
+    const eqPrefix = `--${name}=`;
+    const eqArg = args.find(a => a.startsWith(eqPrefix));
+    if (eqArg) return eqArg.slice(eqPrefix.length);
+
+    const idx = args.indexOf(`--${name}`);
+    if (idx >= 0 && idx + 1 < args.length) return args[idx + 1];
+    return fallback;
+}
 
 // Helper to convert Legacy {data: []} objects back into simple arrays []
 function clean(obj) {
@@ -64,4 +75,11 @@ app.post('/move', (req, res) => {
 app.post('/start', (_req, res) => res.json({}));
 app.post('/end',   (_req, res) => res.json({}));
 
-app.listen(9000, () => console.log("JS Bot listening on 9000 (Legacy-Compatible)"));
+const rawPort = getCliOption('port', '9000');
+const rawHost = getCliOption('host', '0.0.0.0');
+const port = Number(rawPort);
+const host = String(rawHost || '0.0.0.0');
+
+app.listen(Number.isFinite(port) ? port : 9000, host, () => {
+    console.log(`JS Bot listening on ${host}:${Number.isFinite(port) ? port : 9000} (Legacy-Compatible)`);
+});

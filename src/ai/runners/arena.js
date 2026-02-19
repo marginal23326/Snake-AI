@@ -1,10 +1,10 @@
 const axios = require('axios');
-const { getSmartMoveDebug } = require('./brain');
+const { getSmartMoveDebug } = require('../brain');
 const {
     STANDARD_FOOD_SETTINGS,
     placeInitialStandardFood,
     applyStandardFoodSpawning
-} = require('./standard_food');
+} = require('../standard_food');
 
 // --- CONFIGURATION & ARGS ---
 const args = process.argv.slice(2);
@@ -432,7 +432,7 @@ async function main() {
 
     if (FIND_LONGEST && longestGame.history) {
         console.log(`\n${CYAN}Found Longest Game:${RESET} ${longestGame.turns} turns (Winner: ${longestGame.winner})`);
-        console.log(`Reproduce this game: node arena.js --visual --seed=${longestGame.seed}`);
+        console.log(`Reproduce this game: bun arena --visual --seed=${longestGame.seed}`);
         generateDeathJSON(longestGame.history, "Longest Game Snapshot");
     }
 }

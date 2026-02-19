@@ -1,12 +1,12 @@
 (function(global) {
-    const isNode = typeof require !== 'undefined';
-    const Config = isNode ? require('./config') : global.SnakeAI.Config;
-    const Grid = isNode ? require('./grid') : global.SnakeAI.Grid;
-    const getFoodDistanceMap = isNode ? require('./pathfinding') : global.SnakeAI.getFoodDistanceMap;
-    const floodFill = isNode ? require('./floodfill') : global.SnakeAI;
-    const alphaBeta = isNode ? require('./search') : global.SnakeAI.alphaBeta;
-    const Zobrist = isNode ? require('./zobrist') : global.SnakeAI.Zobrist;
-    const TT = isNode ? require('./tt') : global.SnakeAI.TT;
+    const hasRequire = typeof require !== 'undefined';
+    const Config = hasRequire ? require('./config') : global.SnakeAI.Config;
+    const Grid = hasRequire ? require('./grid') : global.SnakeAI.Grid;
+    const getFoodDistanceMap = hasRequire ? require('./pathfinding') : global.SnakeAI.getFoodDistanceMap;
+    const floodFill = hasRequire ? require('./floodfill') : global.SnakeAI;
+    const alphaBeta = hasRequire ? require('./search') : global.SnakeAI.alphaBeta;
+    const Zobrist = hasRequire ? require('./zobrist') : global.SnakeAI.Zobrist;
+    const TT = hasRequire ? require('./tt') : global.SnakeAI.TT;
     
     const DIRS = Config.DIRS;
 
