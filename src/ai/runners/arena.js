@@ -49,6 +49,7 @@ const CYAN = "\x1b[36m";
 const BOT_ROSTER = [
     { name: "JS-Bot",         url: "http://localhost:9000", color: BLUE, type: "modern" },
     { name: "snakebot",       url: "http://localhost:8000", color: GREEN, type: "legacy" },
+    { name: "shapeshifter",     url: "http://localhost:8080", color: GREEN, type: "standard" },
     { name: "snek-two",       url: "http://localhost:7000", color: RED,   type: "legacy" }
 ];
 
@@ -86,21 +87,67 @@ const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 function invertY(y, height) { return height - 1 - y; }
 
-function formatPayload(state, you, isLegacyBot) {
-    const transform = (y) => isLegacyBot ? invertY(y, state.board.height) : y;
+function formatPayload(state, you, botType) {
+    const formatPoint = (p) => ({ x: p.x, y: p.y });
+
+    if (botType === "standard") {
+        return {
+            game: { 
+                id: "game-id", 
+                ruleset: { name: "standard", version: "v1.2.3" }, 
+                map: "standard",
+                source: "arena.js",
+                timeout: 400 
+            },
+            turn: state.turn,
+            board: {
+                height: state.board.height,
+                width: state.board.width,
+                food: state.board.food.map(formatPoint),
+                hazards: [],
+                snakes: state.board.snakes.map(s => ({
+                    id: s.id, name: s.id, health: s.health,
+                    body: s.body.map(formatPoint),
+                    head: formatPoint(s.body[0]),
+                    length: s.body.length, latency: "100", shout: ""
+                }))
+            },
+            you: {
+                id: you.id, name: you.id, health: you.health,
+                body: you.body.map(formatPoint),
+                head: formatPoint(you.body[0]),
+                length: you.body.length, latency: "100", shout: ""
+            }
+        };
+    }
+
+    const isLegacy = (botType === "legacy");
+    const transform = (y) => isLegacy ? invertY(y, state.board.height) : y;
+
     return {
-        object: "world", id: "game-id", width: state.board.width, height: state.board.height, turn: state.turn,
-        food: { object: "list", data: state.board.food.map(f => ({ object: "point", x: f.x, y: transform(f.y) })) },
+        object: "world", id: "game-id",
+        width: state.board.width, height: state.board.height,
+        turn: state.turn,
+        food: {
+            object: "list",
+            data: state.board.food.map(f => ({ object: "point", x: f.x, y: transform(f.y) }))
+        },
         snakes: {
             object: "list",
             data: state.board.snakes.map(s => ({
                 object: "snake", id: s.id, name: s.id, health: s.health,
-                body: { object: "list", data: s.body.map(p => ({ object: "point", x: p.x, y: transform(p.y) })) }
+                body: {
+                    object: "list",
+                    data: s.body.map(p => ({ object: "point", x: p.x, y: transform(p.y) }))
+                }
             }))
         },
         you: {
             object: "snake", id: you.id, name: you.id, health: you.health,
-            body: { object: "list", data: you.body.map(p => ({ object: "point", x: p.x, y: transform(p.y) })) }
+            body: {
+                object: "list",
+                data: you.body.map(p => ({ object: "point", x: p.x, y: transform(p.y) }))
+            }
         }
     };
 }
@@ -241,9 +288,9 @@ async function runMatch(gameSeed) {
 
                     return { id: snake.id, dir };
                 } else {
-                    // networked bot (existing behavior)
-                    const isLegacy = config.type === "legacy";
-                    const payload = formatPayload(state, snake, isLegacy);
+                    // networked bot
+                    const botType = config.type;
+                    const payload = formatPayload(state, snake, botType);
                     const resp = await axios.post(`${config.url}/move`, payload, { timeout: 600 });
                     return { id: snake.id, dir: resp.data.move };
                 }

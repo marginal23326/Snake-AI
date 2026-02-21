@@ -81,26 +81,68 @@ function evaluateScenariosAtCurrentDepth(scenarios, options = {}) {
 }
 
 function parseDepths(value) {
+    // helper to expand a numeric range inclusive with optional step
+    function expandRange(a, b, step = 1) {
+        const start = Math.max(1, Math.floor(Number(a)));
+        const end = Math.max(1, Math.floor(Number(b)));
+        if (!Number.isFinite(start) || !Number.isFinite(end)) return [];
+        const from = Math.min(start, end);
+        const to = Math.max(start, end);
+        const st = Math.max(1, Math.floor(Number(step)) || 1);
+        const out = [];
+        for (let v = from; v <= to; v += st) out.push(v);
+        return out;
+    }
+
+    const results = new Set();
+
+    // If already an array: flatten values (numbers or strings)
     if (Array.isArray(value)) {
-        return value
-            .map(v => Number(v))
-            .filter(Number.isFinite)
-            .map(v => Math.max(1, Math.floor(v)));
+        for (const v of value) {
+            const parsed = parseDepths(v);
+            parsed.forEach(d => results.add(d));
+        }
+        return Array.from(results).sort((a, b) => a - b);
     }
 
-    if (typeof value === 'string') {
-        return value
-            .split(',')
-            .map(v => Number(v.trim()))
-            .filter(Number.isFinite)
-            .map(v => Math.max(1, Math.floor(v)));
-    }
-
+    // If a number
     if (Number.isFinite(value)) {
-        return [Math.max(1, Math.floor(value))];
+        const n = Math.max(1, Math.floor(Number(value)));
+        return [n];
     }
 
+    // If string: support tokens separated by commas.
+    if (typeof value === 'string') {
+        const tokens = value.split(',').map(t => t.trim()).filter(Boolean);
+        for (const token of tokens) {
+            // Range with optional step: "start-end:step" or "start-end/step"
+            const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)(?:(?:\:|\/)(\d+))?$/);
+            if (rangeMatch) {
+                const [, a, b, step] = rangeMatch;
+                expandRange(a, b, step).forEach(d => results.add(d));
+                continue;
+            }
+
+            // Single number
+            const num = Number(token);
+            if (Number.isFinite(num)) {
+                results.add(Math.max(1, Math.floor(num)));
+                continue;
+            }
+
+            // ignore unrecognized token
+        }
+
+        return Array.from(results).sort((a, b) => a - b);
+    }
+
+    // fallback: return empty
     return [];
+}
+
+function formatMs(ms) {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
 }
 
 function runRegressionSuite(options = {}) {
@@ -142,6 +184,8 @@ function runRegressionSuite(options = {}) {
     let skipped = 0;
     const byDepth = [];
 
+    const suiteStart = Date.now();
+
     try {
         for (const depth of depthList) {
             Config.MAX_DEPTH = depth;
@@ -149,12 +193,15 @@ function runRegressionSuite(options = {}) {
                 console.log(`Depth ${depth}:`);
             }
 
+            const depthStart = Date.now();
             const perDepth = evaluateScenariosAtCurrentDepth(scenarios, {
                 logPerScenario: quiet ? quietFailOnly : logPerScenario,
                 logPasses: quiet ? false : logPasses,
                 logFailures: quiet ? quietFailOnly : logFailures
             });
-            byDepth.push({ depth, ...perDepth });
+            const depthMs = Date.now() - depthStart;
+
+            byDepth.push({ depth, ...perDepth, durationMs: depthMs });
 
             passed += perDepth.passed;
             failed += perDepth.failed;
@@ -162,7 +209,7 @@ function runRegressionSuite(options = {}) {
 
             if (!quiet && depthList.length > 1) {
                 console.log(
-                    `Depth ${depth} results -> Passed: ${perDepth.passed}, Failed: ${perDepth.failed}, Skipped: ${perDepth.skipped}\n`
+                    `Depth ${depth} results -> Passed: ${perDepth.passed}, Failed: ${perDepth.failed}, Skipped: ${perDepth.skipped} | ${formatMs(depthMs)}\n`
                 );
             }
         }
@@ -170,14 +217,20 @@ function runRegressionSuite(options = {}) {
         Config.MAX_DEPTH = origDepth;
     }
 
+    const totalMs = Date.now() - suiteStart;
+
     if (!quiet && printSummary) {
         console.log(`--- RESULTS ---`);
         console.log(`Passed:  ${passed}`);
         console.log(`Failed:  ${failed}`);
-        console.log(`Skipped: ${skipped}\n`);
+        console.log(`Skipped: ${skipped}`);
+        if (byDepth.length > 1) {
+            byDepth.forEach(d => console.log(`  Depth ${d.depth}: ${formatMs(d.durationMs)}`));
+        }
+        console.log(`Total:   ${formatMs(totalMs)}\n`);
     }
 
-    return { passed, failed, skipped, byDepth, scenarios: scenarios.length, error: null };
+    return { passed, failed, skipped, byDepth, scenarios: scenarios.length, durationMs: totalMs, error: null };
 }
 
 if (require.main === module) {

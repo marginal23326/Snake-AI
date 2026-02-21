@@ -1,0 +1,298 @@
+{
+  "bestChromosome": {
+    "TRAP_DANGER": -553998180,
+    "STRATEGIC_SQUEEZE": -39393039,
+    "ENEMY_TRAPPED": 304419800,
+    "HEAD_ON_COLLISION": -143723746,
+    "TIGHT_SPOT": -31075.95,
+    "LENGTH": 8926.49,
+    "EAT_REWARD": 435.34,
+    "TERRITORY_CONTROL": 4878.57,
+    "KILL_PRESSURE": 270205.66,
+    "FOOD_INTENSITY": 391.62,
+    "FOOD_THRESHOLD": 16.97,
+    "FOOD_EXPONENT": 2.23,
+    "AGGRESSION": 743.4
+  },
+  "bestFitness": 293.4207792207792,
+  "bestStats": {
+    "score": 293.4207792207792,
+    "wins": 26,
+    "draws": 0,
+    "losses": 2,
+    "avgT": 331.10714285714283,
+    "avgL": 23.678571428571427,
+    "breakdown": {
+      "byKind": {
+        "http": {
+          "games": 24,
+          "wins": 22,
+          "draws": 0,
+          "losses": 2
+        },
+        "self": {
+          "games": 4,
+          "wins": 4,
+          "draws": 0,
+          "losses": 0
+        }
+      },
+      "byOpponent": {
+        "http:http://localhost:7000 (legacy)": {
+          "games": 12,
+          "wins": 10,
+          "draws": 0,
+          "losses": 2
+        },
+        "http:http://localhost:8000 (legacy)": {
+          "games": 12,
+          "wins": 12,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen5": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen6": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen7": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen8": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        }
+      }
+    }
+  },
+  "validation": {
+    "score": 236.2287878787879,
+    "wins": 18,
+    "draws": 0,
+    "losses": 6,
+    "avgT": 284.125,
+    "avgL": 17.291666666666668,
+    "breakdown": {
+      "byKind": {
+        "http": {
+          "games": 20,
+          "wins": 15,
+          "draws": 0,
+          "losses": 5
+        },
+        "self": {
+          "games": 4,
+          "wins": 3,
+          "draws": 0,
+          "losses": 1
+        }
+      },
+      "byOpponent": {
+        "http:http://localhost:7000 (legacy)": {
+          "games": 10,
+          "wins": 7,
+          "draws": 0,
+          "losses": 3
+        },
+        "http:http://localhost:8000 (legacy)": {
+          "games": 10,
+          "wins": 8,
+          "draws": 0,
+          "losses": 2
+        },
+        "self:Self-Gen5": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen6": {
+          "games": 1,
+          "wins": 0,
+          "draws": 0,
+          "losses": 1
+        },
+        "self:Self-Gen7": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen8": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        }
+      }
+    }
+  },
+  "history": [
+    {
+      "gen": 1,
+      "best": 283.06439393939394,
+      "avg": 237.27835743801657,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 4,
+      "fullMatchups": 24,
+      "selfPoolSize": 0
+    },
+    {
+      "gen": 2,
+      "best": 270.0857142857143,
+      "avg": 207.11521399055488,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 1
+    },
+    {
+      "gen": 3,
+      "best": 269.5269480519481,
+      "avg": 202.34838105076747,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 2
+    },
+    {
+      "gen": 4,
+      "best": 271.69155844155847,
+      "avg": 206.22076003541915,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 3
+    },
+    {
+      "gen": 5,
+      "best": 269.1951298701299,
+      "avg": 208.5402867965368,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 4
+    },
+    {
+      "gen": 6,
+      "best": 268.3866883116884,
+      "avg": 239.02484848484852,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 7,
+      "best": 262.88246753246756,
+      "avg": 217.16731601731604,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 8,
+      "best": 260.2042207792208,
+      "avg": 215.6462298307753,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 9,
+      "best": 280.06201298701296,
+      "avg": 227.06554407713503,
+      "bestEver": 283.06439393939394,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 5
+    },
+    {
+      "gen": 10,
+      "best": 293.4207792207792,
+      "avg": 229.789173553719,
+      "bestEver": 293.4207792207792,
+      "staged": true,
+      "quickMatchups": 6,
+      "fullMatchups": 28,
+      "selfPoolSize": 5
+    }
+  ],
+  "settings": {
+    "POP": 20,
+    "GENS": 10,
+    "ELITE": 2,
+    "GPO": 5,
+    "HTTP_GPO": 12,
+    "SELF_GAMES": 4,
+    "MR": 0.12,
+    "MS": 0.05,
+    "TK": 3,
+    "BW": 16,
+    "BH": 9,
+    "MT": 1100,
+    "DEPTH": 8,
+    "legacyHttp": false,
+    "legacyHttpPorts": [
+      7000,
+      8000
+    ],
+    "stagedEval": {
+      "enabled": true,
+      "quickGames": 4,
+      "quickHttpGames": 2,
+      "quickSelfGames": 2,
+      "quickTurnRatio": 0.55,
+      "refineTopFrac": 0.35
+    },
+    "progress": {
+      "level": 0,
+      "every": 1
+    },
+    "verification": {
+      "enabled": true,
+      "depths": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "maxAttempts": 200,
+      "scenarios": 44
+    },
+    "selfPlay": {
+      "enabled": true,
+      "snapshotEvery": 5,
+      "recentCount": 5,
+      "hofCount": 4,
+      "maxPool": 8
+    },
+    "opponents": [
+      "http://localhost:7000 (legacy) x12",
+      "http://localhost:8000 (legacy) x12"
+    ]
+  }
+}

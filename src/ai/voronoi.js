@@ -105,7 +105,7 @@
                 }
             }
         }
-        return { myCount, enemyCount };
+        return { myCount, enemyCount, owners, visited, searchId };
     }
 
     if (typeof module !== 'undefined' && module.exports) {

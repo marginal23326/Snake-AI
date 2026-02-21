@@ -4,11 +4,13 @@
     const TT = (typeof require !== 'undefined') ? require('./tt') : global.SnakeAI.TT;
     const Zobrist = (typeof require !== 'undefined') ? require('./zobrist') : global.SnakeAI.Zobrist;
 
+    const DIR_TO_INT = { "UP": 0, "DOWN": 1, "LEFT": 2, "RIGHT": 3 };
+
     function getSafeNeighbors(grid, head, snake) {
         const moves = [];
         const body = snake.body;
         const bodyLen = body.length;
-        
+
         let tailX = -1, tailY = -1;
         let isTailStacked = false;
 
@@ -30,34 +32,36 @@
 
             let isSafe = grid.isSafe(nx, ny);
 
-            // Tail chasing logic
             if (!isSafe && nx === tailX && ny === tailY) {
                 const isEatingFood = (grid.get(nx, ny) === 1);
-                if (!isTailStacked && !isEatingFood) {
-                    isSafe = true;
-                }
+                if (!isTailStacked && !isEatingFood) isSafe = true;
             }
 
-            if (isSafe) {
-                moves.push({ x: nx, y: ny, dir: d });
-            }
+            if (isSafe) moves.push({ x: nx, y: ny, dir: d, dirInt: DIR_TO_INT[dirKeys[i]] });
         }
 
         return moves;
     }
 
     /**
-     * Alpha-Beta with Transposition Table
-     * @param {BigInt} currentHash - The Zobrist hash of the current state
+     * Negamax with Alpha-Beta pruning, TT, and History Heuristic.
      */
-    function alphaBeta(grid, state, depth, alpha, beta, isMaximizing, rootDepth = depth, currentHash = 0n) {
-        const originalAlpha = alpha;
+    function negamax(grid, state, depth, alpha, beta, side = 0, rootDepth = depth, currentHash = 0n, historyTable = null, ply = 0) {
 
-        // 1. Transposition Table Lookup
-        // We skip TT at root (depth === rootDepth) to ensure we get the full root move list/debug info
-        if (depth !== rootDepth) {
-            const ttEntry = TT.get(currentHash);
-            if (ttEntry && ttEntry.depth >= depth) {
+        if (!historyTable) {
+            // Index 0 for original player (me), Index 1 for opponent.
+            historyTable = [
+                new Int32Array(grid.width * grid.height * 4),
+                new Int32Array(grid.width * grid.height * 4)
+            ];
+        }
+
+        const originalAlpha = alpha;
+        const ttEntry = TT.get(currentHash);
+
+        // 1. TT Lookup
+        if (depth !== rootDepth && ttEntry) {
+            if (ttEntry.depth >= depth) {
                 if (ttEntry.flag === TT.EXACT) {
                     return { score: ttEntry.score, move: ttEntry.move };
                 } else if (ttEntry.flag === TT.LOWERBOUND) {
@@ -65,10 +69,7 @@
                 } else if (ttEntry.flag === TT.UPPERBOUND) {
                     beta = Math.min(beta, ttEntry.score);
                 }
-
-                if (alpha >= beta) {
-                    return { score: ttEntry.score, move: ttEntry.move };
-                }
+                if (alpha >= beta) return { score: ttEntry.score, move: ttEntry.move };
             }
         }
 
@@ -77,48 +78,45 @@
             return { score: Config.SCORES.LOSS - depth, move: null };
         if (!state.enemy.body || state.enemy.body.length === 0 || state.enemy.health <= 0)
             return { score: Config.SCORES.WIN + depth, move: null };
-        if (depth === 0) return { score: evaluate(grid, state), move: null };
+        if (depth === 0) {
+            const score = side === 0
+                ? evaluate(grid, state, ply)
+                : -evaluate(grid, { me: state.enemy, enemy: state.me, food: state.food }, ply);
+            return { score, move: null };
+        }
 
         // 3. Move Generation
-        const currentSnake = isMaximizing ? state.me : state.enemy;
-        const opponentSnake = isMaximizing ? state.enemy : state.me;
-        const head = currentSnake.body[0];
+        const head = state.me.body[0];
+        const headIdx = head.y * grid.width + head.x;
+        const moves = getSafeNeighbors(grid, head, state.me);
 
-        const moves = getSafeNeighbors(grid, head, currentSnake);
+        if (moves.length === 0)
+            return { score: Config.SCORES.LOSS - depth, move: null };
 
-        if (moves.length === 0) {
-            return { score: isMaximizing ? Config.SCORES.LOSS - depth : Config.SCORES.WIN + depth, move: null };
-        }
-
-        // 4. Move Sorting
-        let pvMove = null;
-        const ttEntry = TT.get(currentHash);
-        if (ttEntry && ttEntry.move) {
-            pvMove = ttEntry.move;
-        }
+        // 4. Move Ordering
+        const pvMove = (ttEntry && ttEntry.move) ? ttEntry.move : null;
 
         if (moves.length > 1) {
             const food = state.food;
             const foodLen = food.length;
-
             moves.sort((a, b) => {
-                // PV Move First
-                if (pvMove) {
-                    if (a.x === pvMove.x && a.y === pvMove.y) return -1;
-                    if (b.x === pvMove.x && b.y === pvMove.y) return 1;
-                }
+                if (pvMove && a.x === pvMove.x && a.y === pvMove.y) return -1;
+                if (pvMove && b.x === pvMove.x && b.y === pvMove.y) return 1;
+                
+                const histDiff = historyTable[side][headIdx * 4 + b.dirInt] - historyTable[side][headIdx * 4 + a.dirInt];
+                if (histDiff !== 0) return histDiff;
 
+                // Food Proximity
                 let minA = 1000, minB = 1000;
                 for (let i = 0; i < foodLen; i++) {
                     const f = food[i];
-                    const distA = Math.abs(a.x - f.x) + Math.abs(a.y - f.y);
-                    const distB = Math.abs(b.x - f.x) + Math.abs(b.y - f.y);
-                    if (distA < minA) minA = distA;
-                    if (distB < minB) minB = distB;
+                    const dA = Math.abs(a.x - f.x) + Math.abs(a.y - f.y);
+                    const dB = Math.abs(b.x - f.x) + Math.abs(b.y - f.y);
+                    if (dA < minA) minA = dA;
+                    if (dB < minB) minB = dB;
                 }
                 if (minA === minB) {
-                    const cx = grid.width / 2;
-                    const cy = grid.height / 2;
+                    const cx = grid.width / 2, cy = grid.height / 2;
                     return (Math.abs(a.x - cx) + Math.abs(a.y - cy)) - (Math.abs(b.x - cx) + Math.abs(b.y - cy));
                 }
                 return minA - minB;
@@ -126,104 +124,79 @@
         }
 
         let bestMove = moves[0];
-        let bestScore = isMaximizing ? -Infinity : Infinity;
-        const isRootMax = (rootDepth === depth && isMaximizing);
-        const childRecords = isRootMax ? [] : null;
+        let bestScore = -Infinity;
+        const isRoot = (rootDepth === depth && side === 0);
+        const childRecords = isRoot ? [] : null;
 
         // 5. Search Loop
         for (const move of moves) {
             let collisionPenalty = 0;
-            
-            // Head-on collision check
-            if (isMaximizing) {
-                const opponentHead = opponentSnake.body[0];
+            if (side === 0) {
+                const opponentHead = state.enemy.body[0];
                 const dist = Math.abs(move.x - opponentHead.x) + Math.abs(move.y - opponentHead.y);
                 if (dist === 1) {
-                    const myLen = currentSnake.body.length;
-                    const oppLen = opponentSnake.body.length;
-                    if (oppLen > myLen) collisionPenalty = Config.SCORES.HEAD_ON_COLLISION; 
-                    else if (oppLen === myLen) collisionPenalty = Config.SCORES.DRAW; 
+                    const myLen = state.me.body.length;
+                    const oppLen = state.enemy.body.length;
+                    if (oppLen > myLen)  collisionPenalty = Config.SCORES.HEAD_ON_COLLISION;
+                    else if (oppLen === myLen) collisionPenalty = Config.SCORES.DRAW;
                 }
             }
 
-            // --- DO MOVE & INCREMENTAL HASH ---
+            // --- DO MOVE ---
             const originalHeadVal = grid.get(move.x, move.y);
             const ateFood = (originalHeadVal === 1);
-            
-            let tailX = -1, tailY = -1;
-            let originalTailVal = 0; 
-            let didModifyTail = false;
+
+            let tailX = -1, tailY = -1, originalTailVal = 0, didModifyTail = false;
 
             const newHead = { x: move.x, y: move.y };
-            const newCurrentBody = [ newHead, ...currentSnake.body ];
+            const newBody = [newHead, ...state.me.body];
 
-            // Start calculating next hash
             let nextHash = currentHash;
-
-            // Remove what was there (Empty or Food)
-            const oldHealth = isMaximizing ? state.me.health : state.enemy.health;
+            const oldHealth = state.me.health;
             const newHealth = ateFood ? 100 : oldHealth - 1;
+            const cellId = side === 0 ? 2 : 3;
 
-            // Update hash with health change
-            nextHash = Zobrist.xorHealth(nextHash, oldHealth, newHealth, isMaximizing);
-
+            nextHash = Zobrist.xorHealth(nextHash, oldHealth, newHealth, side === 0);
             nextHash = Zobrist.xor(nextHash, move.x, move.y, originalHeadVal);
-            // Add New Head (2 for Me, 3 for Enemy)
-            const myId = isMaximizing ? 2 : 3;
-            nextHash = Zobrist.xor(nextHash, move.x, move.y, myId);
+            nextHash = Zobrist.xor(nextHash, move.x, move.y, cellId);
 
             if (!ateFood) {
-                const tail = newCurrentBody.pop(); 
+                const tail = newBody.pop();
                 if (tail.x !== newHead.x || tail.y !== newHead.y) {
-                    tailX = tail.x;
-                    tailY = tail.y;
+                    tailX = tail.x; tailY = tail.y;
                     originalTailVal = grid.get(tailX, tailY);
-                    
-                    // Modify Grid
                     grid.set(tailX, tailY, 0);
                     didModifyTail = true;
-
-                    // 2. Tail Change in Hash:
-                    nextHash = Zobrist.xor(nextHash, tailX, tailY, myId);
+                    nextHash = Zobrist.xor(nextHash, tailX, tailY, cellId);
                 }
             }
-
-            // Update Grid Head
-            grid.set(move.x, move.y, myId);
+            grid.set(move.x, move.y, cellId);
 
             const nextState = {
-                me: isMaximizing ? { body: newCurrentBody, health: ateFood ? 100 : state.me.health - 1 } : state.me,
-                enemy: isMaximizing ? state.enemy : { body: newCurrentBody, health: ateFood ? 100 : state.enemy.health - 1 },
+                me: state.enemy,
+                enemy: { body: newBody, health: newHealth },
                 food: ateFood ? state.food.filter(f => f.x !== move.x || f.y !== move.y) : state.food,
             };
 
             // Recurse
-            const child = alphaBeta(grid, nextState, depth - 1, alpha, beta, !isMaximizing, rootDepth, nextHash);
+            const child = negamax(grid, nextState, depth - 1, -beta, -alpha, 1 - side, rootDepth, nextHash, historyTable, ply + 1);
 
-            // --- UNDO MOVE (Backtracking) ---
-            grid.set(move.x, move.y, originalHeadVal); 
-            if (didModifyTail) {
-                grid.set(tailX, tailY, originalTailVal);
-            }
+            // --- UNDO MOVE ---
+            grid.set(move.x, move.y, originalHeadVal);
+            if (didModifyTail) grid.set(tailX, tailY, originalTailVal);
 
             // --- SCORING ---
-            let modifiedScore = child.score;
-            if (isMaximizing && collisionPenalty !== 0) {
-                modifiedScore = Math.min(modifiedScore, collisionPenalty);
-            }
-            if (ateFood) {
-                const DEATH_THRESHOLD = -50000000; 
-                if (isMaximizing) {
-                    if (modifiedScore > DEATH_THRESHOLD) modifiedScore += Config.SCORES.EAT_REWARD;
-                } else {
-                    if (modifiedScore < -DEATH_THRESHOLD) modifiedScore -= Config.SCORES.EAT_REWARD;
-                }
-            }
+            let modifiedScore = -child.score;
 
-            // Debug recording
-            if (isRootMax) {
+            if (collisionPenalty !== 0)
+                modifiedScore = Math.min(modifiedScore, collisionPenalty);
+
+            if (ateFood && modifiedScore > -50000000)
+                modifiedScore += Config.SCORES.EAT_REWARD;
+
+            if (isRoot) {
                 childRecords.push({
-                    move: move,
+                    move,
                     coords: { x: move.x, y: move.y },
                     rawRecursionScore: child.score,
                     collisionPenalty,
@@ -232,32 +205,34 @@
                 });
             }
 
-            if (isMaximizing) {
-                if (modifiedScore > bestScore) { bestScore = modifiedScore; bestMove = move; }
-                alpha = Math.max(alpha, bestScore);
-            } else {
-                if (modifiedScore < bestScore) { bestScore = modifiedScore; bestMove = move; }
-                beta = Math.min(beta, bestScore);
+            // --- ALPHA-BETA UPDATE
+            if (modifiedScore > bestScore) {
+                bestScore = modifiedScore;
+                bestMove = move;
             }
-            if (beta <= alpha) break;
+            if (bestScore > alpha) alpha = bestScore;
+
+            // Cutoff
+            if (alpha >= beta) break;
         }
 
-        // 6. Store in Transposition Table
-        // We do not store root nodes usually if we want to force re-eval, but storing them helps.
+        if (bestMove) {
+            historyTable[side][headIdx * 4 + bestMove.dirInt] += (depth * depth);
+        }
+
+        // 6. Store in TT
         let ttFlag = TT.EXACT;
         if (bestScore <= originalAlpha) ttFlag = TT.UPPERBOUND;
-        else if (bestScore >= beta) ttFlag = TT.LOWERBOUND;
-
+        else if (bestScore >= beta)     ttFlag = TT.LOWERBOUND;
         TT.set(currentHash, depth, bestScore, ttFlag, bestMove);
 
-        // Debug Root Info
-        if (isRootMax) {
+        if (isRoot) {
             try {
                 global.SnakeAI = global.SnakeAI || {};
                 global.SnakeAI._lastAlphaBetaRoot = {
                     score: bestScore,
                     move: bestMove,
-                    rootDepth: rootDepth,
+                    rootDepth,
                     timestamp: Date.now(),
                     children: childRecords
                 };
@@ -268,9 +243,9 @@
     }
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = alphaBeta;
+        module.exports = negamax;
     } else {
         global.SnakeAI = global.SnakeAI || {};
-        global.SnakeAI.alphaBeta = alphaBeta;
+        global.SnakeAI.alphaBeta = negamax;
     }
 })(this);

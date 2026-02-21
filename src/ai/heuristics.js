@@ -2,12 +2,13 @@
     const Config = (typeof require !== 'undefined') ? require('./config') : global.SnakeAI.Config;
     const floodFill = (typeof require !== 'undefined') ? require('./floodfill') : global.SnakeAI.floodFill;
     const computeVoronoi = (typeof require !== 'undefined') ? require('./voronoi') : global.SnakeAI.computeVoronoi;
+    const solveEndgame = (typeof require !== 'undefined') ? require('./endgame') : global.SnakeAI.solveEndgame;
 
     function manhattan(p1, p2) {
         return Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y);
     }
 
-    function evaluate(grid, state, debug = false) {
+    function evaluate(grid, state, ply = 0, debug = false) {
         const me = state.me; 
         const enemy = state.enemy;
         const breakdown = {}; 
@@ -40,6 +41,34 @@
         
         if (tailIsSafe) grid.set(tail.x, tail.y, originalTailVal);
 
+        let closestDist = grid.width; 
+        if (state.food && state.food.length > 0) {
+            let actualDist = 9999;
+            if (state.distMap) {
+                const headIdx = myHead.y * grid.width + myHead.x;
+                actualDist = state.distMap[headIdx];
+            } else {
+                for(const f of state.food) {
+                    const d = manhattan(myHead, f);
+                    if (d < actualDist) actualDist = d;
+                }
+            }
+            if (actualDist !== 1000 && actualDist !== 9999) {
+                closestDist = actualDist;
+            }
+        }
+
+        // --- ENDGAME SOLVER ---
+        const endgameScore = solveEndgame(grid, state, voronoi, closestDist, ply);
+        if (endgameScore !== null) {
+            if (debug) {
+                breakdown.endgame = endgameScore;
+                breakdown.total = endgameScore;
+                return breakdown;
+            }
+            return endgameScore;
+        }
+
         // A. Territory Score
         const territoryScore = (voronoi.myCount - voronoi.enemyCount) * Config.SCORES.TERRITORY_CONTROL;
         score += territoryScore;
@@ -47,7 +76,6 @@
         let iAmInDeathTrap = false; 
 
         if (voronoi.myCount < me.body.length) {
-            
             const ffResult = floodFill(grid, myHead.x, myHead.y, me.body.length + 2, me.body);
             
             const physicalSpace = ffResult.count;
@@ -74,15 +102,14 @@
 
         // 3. Enemy Trap Detection
         if (!iAmInDeathTrap && voronoi.enemyCount < enemy.body.length) {
-            const enemyHead = enemy.body[0];
-            const enFF = floodFill(grid, enemyHead.x, enemyHead.y, enemy.body.length + 2, enemy.body);
+            const oppHead = enemy.body[0];
+            const enFF = floodFill(grid, oppHead.x, oppHead.y, enemy.body.length + 2, enemy.body);
             
             const enSpace = enFF.count;
             const enTimeToEscape = enFF.minTurnsToClear;
             const enFutureLen = enemy.body.length + (enFF.hasFood ? 1 : 0);
 
             if (enSpace < enFutureLen && enSpace < enTimeToEscape) {
-                // Use the Config value we discussed earlier
                 const enemyTrappedBonus = Config.SCORES.ENEMY_TRAPPED; 
                 score += enemyTrappedBonus;
                 if (debug) breakdown.killThreat = enemyTrappedBonus;
@@ -99,18 +126,7 @@
 
         // 4. Food
         let foodScore = 0;
-        if (state.food && state.food.length > 0) {
-            let closestDist = 9999;
-            if (state.distMap) {
-                const headIdx = myHead.y * grid.width + myHead.x;
-                closestDist = state.distMap[headIdx];
-            } else {
-                for(const f of state.food) {
-                    const d = manhattan(myHead, f);
-                    if (d < closestDist) closestDist = d;
-                }
-            }
-
+        if (state.food && state.food.length > 0 && closestDist !== grid.width) {
             if (closestDist > me.health) {
                 return debug ? { total: Config.SCORES.LOSS, reason: "Starvation" } : Config.SCORES.LOSS;
             }

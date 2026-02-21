@@ -35,7 +35,7 @@
         const initialHash = Zobrist.computeHash(grid, state.me.health, state.enemy.health);
 
         // 4. Single Pass Search
-        const result = alphaBeta(grid, state, Config.MAX_DEPTH, -Infinity, Infinity, true, Config.MAX_DEPTH, initialHash);
+        const result = alphaBeta(grid, state, Config.MAX_DEPTH, -Infinity, Infinity, 0, Config.MAX_DEPTH, initialHash);
         
         let moveDir = result.move ? result.move.dir : null;
         let logStr = `Score: ${Math.floor(result.score)}`;

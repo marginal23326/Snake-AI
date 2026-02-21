@@ -61,14 +61,12 @@
     <script src="../ai/tt.js"></script>
     <script src="../ai/zobrist.js"></script>
     <script src="../ai/pathfinding.js"></script>
+    <script src="../ai/endgame.js"></script>
     <script src="../ai/heuristics.js"></script>
     <script src="../ai/search.js"></script>
     <script src="../ai/brain.js"></script>
-    
-    <!-- 2. VISUALIZER -->
-    <script src="visualizer.js"></script>
 
-    <!-- 3. MAIN LOGIC -->
+    <!-- 2. MAIN LOGIC -->
     <script>
         // --- GLOBAL VARIABLES (Declared Top-Level to avoid ReferenceErrors) ---
         // Alias imports from the Global Namespace
@@ -84,6 +82,8 @@
         const gridSize = 20;
         window.cols = 16;
         window.rows = 9;
+        const canvas = document.getElementById("c");
+        const ctx = canvas.getContext("2d");
 
         let player = { body: [], dir: DIRS.UP, score: 0, health: 100 };
         let ai = { body: [], dir: DIRS.DOWN, score: 0, didEat: false, health: 100 };
