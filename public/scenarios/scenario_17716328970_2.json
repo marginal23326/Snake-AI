@@ -1,0 +1,119 @@
+{
+  "id": 1771663365499,
+  "name": "Scenario 1771663365499",
+  "expectedMove": "left",
+  "rawRequest": {
+    "board": {
+      "height": 9,
+      "width": 16,
+      "snakes": [
+        {
+          "id": "ai-snake-for-test",
+          "name": "Test Target AI",
+          "head": {
+            "x": 15,
+            "y": 7
+          },
+          "body": [
+            {
+              "x": 15,
+              "y": 7
+            },
+            {
+              "x": 15,
+              "y": 8
+            },
+            {
+              "x": 14,
+              "y": 8
+            },
+            {
+              "x": 14,
+              "y": 7
+            }
+          ],
+          "length": 4,
+          "health": 53
+        },
+        {
+          "id": "player-opponent-for-test",
+          "name": "Test Opponent",
+          "head": {
+            "x": 10,
+            "y": 7
+          },
+          "body": [
+            {
+              "x": 10,
+              "y": 7
+            },
+            {
+              "x": 11,
+              "y": 7
+            },
+            {
+              "x": 12,
+              "y": 7
+            },
+            {
+              "x": 13,
+              "y": 7
+            },
+            {
+              "x": 13,
+              "y": 6
+            },
+            {
+              "x": 14,
+              "y": 6
+            },
+            {
+              "x": 15,
+              "y": 6
+            }
+          ],
+          "length": 7,
+          "health": 99
+        }
+      ],
+      "food": [
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 9,
+          "y": 7
+        }
+      ]
+    },
+    "you": {
+      "id": "ai-snake-for-test",
+      "name": "Test Target AI",
+      "head": {
+        "x": 15,
+        "y": 7
+      },
+      "body": [
+        {
+          "x": 15,
+          "y": 7
+        },
+        {
+          "x": 15,
+          "y": 8
+        },
+        {
+          "x": 14,
+          "y": 8
+        },
+        {
+          "x": 14,
+          "y": 7
+        }
+      ],
+      "length": 4,
+      "health": 53
+    }
+  }
+}

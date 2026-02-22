@@ -4,40 +4,70 @@
     const TT = (typeof require !== 'undefined') ? require('./tt') : global.SnakeAI.TT;
     const Zobrist = (typeof require !== 'undefined') ? require('./zobrist') : global.SnakeAI.Zobrist;
 
-    const DIR_TO_INT = { "UP": 0, "DOWN": 1, "LEFT": 2, "RIGHT": 3 };
+    const DIRS_ARRAY = [
+        { dx: 0, dy: 1, dir: Config.DIRS.UP, dirInt: 0 },
+        { dx: 0, dy: -1, dir: Config.DIRS.DOWN, dirInt: 1 },
+        { dx: -1, dy: 0, dir: Config.DIRS.LEFT, dirInt: 2 },
+        { dx: 1, dy: 0, dir: Config.DIRS.RIGHT, dirInt: 3 }
+    ];
 
-    function getSafeNeighbors(grid, head, snake) {
+    function getSafeNeighbors(grid, state) {
         const moves = [];
-        const body = snake.body;
-        const bodyLen = body.length;
+        const myBody = state.me.body;
+        const oppBody = state.enemy.body;
+        const myBodyLen = myBody.length;
+        const oppBodyLen = oppBody.length;
+        const head = myBody[0];
 
-        let tailX = -1, tailY = -1;
-        let isTailStacked = false;
-
-        if (bodyLen > 1) {
-            const tail = body[bodyLen - 1];
-            const tailPrev = body[bodyLen - 2];
-            tailX = tail.x;
-            tailY = tail.y;
-            isTailStacked = (tailX === tailPrev.x && tailY === tailPrev.y);
+        let myTailX = -1, myTailY = -1, myTailStacked = false;
+        if (myBodyLen > 1) {
+            const tail = myBody[myBodyLen - 1];
+            const prev = myBody[myBodyLen - 2];
+            myTailX = tail.x; 
+            myTailY = tail.y;
+            myTailStacked = (tail.x === prev.x && tail.y === prev.y);
         }
 
-        const dirs = Config.DIRS;
-        const dirKeys = ["UP", "DOWN", "LEFT", "RIGHT"];
+        let oppTailX = -1, oppTailY = -1, oppTailStacked = false;
+        let oppTailChecked = false;
+        if (oppBodyLen > 1) {
+            const tail = oppBody[oppBodyLen - 1];
+            const prev = oppBody[oppBodyLen - 2];
+            oppTailX = tail.x; 
+            oppTailY = tail.y;
+            oppTailStacked = (tail.x === prev.x && tail.y === prev.y);
+            if (oppTailStacked) oppTailChecked = true; 
+        }
 
         for (let i = 0; i < 4; i++) {
-            const d = dirs[dirKeys[i]];
-            const nx = head.x + d.x;
-            const ny = head.y + d.y;
+            const d = DIRS_ARRAY[i];
+            const nx = head.x + d.dx;
+            const ny = head.y + d.dy;
 
             let isSafe = grid.isSafe(nx, ny);
 
-            if (!isSafe && nx === tailX && ny === tailY) {
-                const isEatingFood = (grid.get(nx, ny) === 1);
-                if (!isTailStacked && !isEatingFood) isSafe = true;
+            // Allow moving into unstacked tails
+            if (!isSafe) {
+                if (nx === myTailX && ny === myTailY) {
+                    if (!myTailStacked) isSafe = true;
+                } else if (nx === oppTailX && ny === oppTailY) {
+                    if (!oppTailChecked) {
+                        const oppHead = oppBody[0];
+                        oppTailStacked = (
+                            grid.get(oppHead.x, oppHead.y - 1) === 1 ||
+                            grid.get(oppHead.x, oppHead.y + 1) === 1 ||
+                            grid.get(oppHead.x - 1, oppHead.y) === 1 ||
+                            grid.get(oppHead.x + 1, oppHead.y) === 1
+                        );
+                        oppTailChecked = true;
+                    }
+                    if (!oppTailStacked) isSafe = true;
+                }
             }
 
-            if (isSafe) moves.push({ x: nx, y: ny, dir: d, dirInt: DIR_TO_INT[dirKeys[i]] });
+            if (isSafe) {
+                moves.push({ x: nx, y: ny, dir: d.dir, dirInt: d.dirInt });
+            }
         }
 
         return moves;
@@ -46,7 +76,7 @@
     /**
      * Negamax with Alpha-Beta pruning, TT, and History Heuristic.
      */
-    function negamax(grid, state, depth, alpha, beta, side = 0, rootDepth = depth, currentHash = 0n, historyTable = null, ply = 0) {
+    function negamax(grid, state, depth, alpha, beta, side = 0, rootDepth = depth, currentHash = 0n, historyTable = null) {
 
         if (!historyTable) {
             // Index 0 for original player (me), Index 1 for opponent.
@@ -80,15 +110,15 @@
             return { score: Config.SCORES.WIN + depth, move: null };
         if (depth === 0) {
             const score = side === 0
-                ? evaluate(grid, state, ply)
-                : -evaluate(grid, { me: state.enemy, enemy: state.me, food: state.food }, ply);
+                ? evaluate(grid, state)
+                : -evaluate(grid, { me: state.enemy, enemy: state.me, food: state.food });
             return { score, move: null };
         }
 
         // 3. Move Generation
         const head = state.me.body[0];
         const headIdx = head.y * grid.width + head.x;
-        const moves = getSafeNeighbors(grid, head, state.me);
+        const moves = getSafeNeighbors(grid, state);
 
         if (moves.length === 0)
             return { score: Config.SCORES.LOSS - depth, move: null };
@@ -146,7 +176,7 @@
             const originalHeadVal = grid.get(move.x, move.y);
             const ateFood = (originalHeadVal === 1);
 
-            let tailX = -1, tailY = -1, originalTailVal = 0, didModifyTail = false;
+            let tailX = -1, tailY = -1, originalTailVal = 0, didModifyTail = false, clearedTailGrid = false;
 
             const newHead = { x: move.x, y: move.y };
             const newBody = [newHead, ...state.me.body];
@@ -165,7 +195,10 @@
                 if (tail.x !== newHead.x || tail.y !== newHead.y) {
                     tailX = tail.x; tailY = tail.y;
                     originalTailVal = grid.get(tailX, tailY);
-                    grid.set(tailX, tailY, 0);
+                    if (originalTailVal === cellId) {
+                        grid.set(tailX, tailY, 0);
+                        clearedTailGrid = true;
+                    }
                     didModifyTail = true;
                     nextHash = Zobrist.xor(nextHash, tailX, tailY, cellId);
                 }
@@ -179,11 +212,11 @@
             };
 
             // Recurse
-            const child = negamax(grid, nextState, depth - 1, -beta, -alpha, 1 - side, rootDepth, nextHash, historyTable, ply + 1);
+            const child = negamax(grid, nextState, depth - 1, -beta, -alpha, 1 - side, rootDepth, nextHash, historyTable);
 
             // --- UNDO MOVE ---
             grid.set(move.x, move.y, originalHeadVal);
-            if (didModifyTail) grid.set(tailX, tailY, originalTailVal);
+            if (didModifyTail && clearedTailGrid) grid.set(tailX, tailY, originalTailVal);
 
             // --- SCORING ---
             let modifiedScore = -child.score;

@@ -61,22 +61,23 @@
     <script src="../ai/tt.js"></script>
     <script src="../ai/zobrist.js"></script>
     <script src="../ai/pathfinding.js"></script>
-    <script src="../ai/endgame.js"></script>
     <script src="../ai/heuristics.js"></script>
     <script src="../ai/search.js"></script>
     <script src="../ai/brain.js"></script>
+    <script src="../ai/standard_food.js"></script>
 
     <!-- 2. MAIN LOGIC -->
     <script>
-        // --- GLOBAL VARIABLES (Declared Top-Level to avoid ReferenceErrors) ---
+        // --- GLOBAL VARIABLES ---
         // Alias imports from the Global Namespace
         const DIRS = window.SnakeAI.DIRS;
         const getSmartMoveDebug = window.SnakeAI.getSmartMoveDebug;
+        const placeInitialStandardFood = window.SnakeAI.placeInitialStandardFood;
+        const applyStandardFoodSpawning = window.SnakeAI.applyStandardFoodSpawning;
+        const STANDARD_FOOD_SETTINGS = window.SnakeAI.STANDARD_FOOD_SETTINGS;
 
         const GAME_CONFIG = {
-            FOOD_COUNT: 2,
             INITIAL_SNAKE_HEALTH: 100,
-            MIN_SPACE_FOR_FOOD: 1
         };
 
         const gridSize = 20;
@@ -88,10 +89,11 @@
         let player = { body: [], dir: DIRS.UP, score: 0, health: 100 };
         let ai = { body: [], dir: DIRS.DOWN, score: 0, didEat: false, health: 100 };
         let foods = [];
+        let playerInputQueue = [];
         let mode = "paint_p1";
         let isDrawing = false;
         let autoInterval = null;
-        let isReplayMode = false; // Fixes ReferenceError
+        let isReplayMode = false;
         let currentSeed = 1;
 
         function seededRandom() {
@@ -99,10 +101,17 @@
             return currentSeed / 4294967296;
         }
 
+        // Wrapper function so standard_food.js gets the expected randInt(max) behavior
+        function seededRandInt(max) {
+            return Math.floor(seededRandom() * max);
+        }
+
         function init() {
             window.cols = 16;
             window.rows = 9;
             resizeCanvas();
+
+            playerInputQueue = [];
 
             player.body = [{ x: 5, y: 5 }, { x: 5, y: 4 }, { x: 5, y: 3 }];
             player.dir = DIRS.UP;
@@ -117,9 +126,9 @@
             ai.health = GAME_CONFIG.INITIAL_SNAKE_HEALTH;
 
             foods = [];
-            for (let i = 0; i < GAME_CONFIG.FOOD_COUNT; i++) {
-                placeFoodDeterministic();
-            }
+            const activeSnakes = [player, ai].filter(s => s.body.length > 0);
+            
+            placeInitialStandardFood(seededRandInt, window.cols, window.rows, activeSnakes, foods, STANDARD_FOOD_SETTINGS);
             
             draw();
             setMode("paint_p1");
@@ -128,28 +137,6 @@
         function resizeCanvas() {
             canvas.width = window.cols * gridSize;
             canvas.height = window.rows * gridSize;
-        }
-
-        function placeFoodDeterministic() {
-            let newFood = {};
-            for (let i = 0; i < 100; i++) {
-                const rx = seededRandom();
-                const ry = seededRandom();
-
-                newFood = {
-                    x: Math.floor(rx * window.cols),
-                    y: Math.floor(ry * window.rows),
-                };
-
-                // Check if occupied by snake OR already existing food
-                const isOccupiedBySnake = [...player.body, ...ai.body].some(p => p.x === newFood.x && p.y === newFood.y);
-                const isOccupiedByFood = foods.some(f => f.x === newFood.x && f.y === newFood.y);
-
-                if (!isOccupiedBySnake && !isOccupiedByFood) {
-                    foods.push(newFood);
-                    return; // Exit once one food is placed
-                }
-            }
         }
 
         function step() {
@@ -172,12 +159,23 @@
                 logElement.innerText = aiDecision.logStr;
             }
 
+            if (playerInputQueue.length > 0) {
+                player.dir = playerInputQueue.shift();
+                
+                const select = document.getElementById("p1-dir-sel");
+                for (let key in DIRS) {
+                    if (DIRS[key] === player.dir) {
+                        select.value = key;
+                        break;
+                    }
+                }
+            }
+
             // 2. Calculate Next Heads
             const nextAiHead = { x: ai.body[0].x + ai.dir.x, y: ai.body[0].y + ai.dir.y };
             const nextP1Head = { x: player.body[0].x + player.dir.x, y: player.body[0].y + player.dir.y };
 
             // 3. Determine "Will Eat" Status
-            // We must know if they eat BEFORE we check collisions, because eating freezes the tail.
             const aiWillEat = foods.some(f => f.x === nextAiHead.x && f.y === nextAiHead.y);
             const p1WillEat = foods.some(f => f.x === nextP1Head.x && f.y === nextP1Head.y);
 
@@ -209,17 +207,12 @@
                 return false;
             };
 
-            // AI vs Player Body (Does Player eat? If so, Player tail is solid)
             if (!aiDead && checkBodyHit(nextAiHead, player.body, p1WillEat)) aiDead = true;
-            
-            // Player vs AI Body (Does AI eat? If so, AI tail is solid)
             if (!p1Dead && checkBodyHit(nextP1Head, ai.body, aiWillEat)) p1Dead = true;
-
-            // Self Collisions
             if (!aiDead && checkBodyHit(nextAiHead, ai.body, aiWillEat)) aiDead = true;
             if (!p1Dead && checkBodyHit(nextP1Head, player.body, p1WillEat)) p1Dead = true;
 
-            // 7. Move & Update (Pass the pre-calculated eat status to avoid re-calculation issues)
+            // 7. Move & Update
             if (!aiDead) {
                 updateSnakeBody(ai, nextAiHead, aiWillEat);
                 if (ai.health <= 0) aiDead = true; 
@@ -233,6 +226,12 @@
             if (aiDead) ai.body = [];
             if (p1Dead) player.body = [];
 
+            // 9. Standard Food Spawning
+            const activeSnakes = [];
+            if (player.body.length > 0) activeSnakes.push(player);
+            if (ai.body.length > 0) activeSnakes.push(ai);
+            applyStandardFoodSpawning(seededRandInt, window.cols, window.rows, activeSnakes, foods, STANDARD_FOOD_SETTINGS);
+
             draw();
         }
 
@@ -241,15 +240,13 @@
             if (didEat) {
                 const foodIdx = foods.findIndex(f => f.x === nextHead.x && f.y === nextHead.y);
                 if (foodIdx !== -1) {
-                    foods.splice(foodIdx, 1); // Remove the eaten food
+                    foods.splice(foodIdx, 1); 
                 }
                 
                 snake.health = 100;
                 snake.score++;
-                
-                placeFoodDeterministic();
             } else {
-                snake.body.pop(); // Tail moves forward
+                snake.body.pop(); 
                 snake.health--;
             }
         }
@@ -276,7 +273,9 @@
                 snake.score++;
                 snake.health = 100;
                 foods.splice(fIdx, 1);
-                placeFoodDeterministic();
+                
+                const activeSnakes = [player, ai].filter(s => s.body && s.body.length > 0);
+                applyStandardFoodSpawning(seededRandInt, window.cols, window.rows, activeSnakes, foods, STANDARD_FOOD_SETTINGS);
             } else {
                 snake.body.pop();
                 snake.health--;
@@ -292,9 +291,12 @@
         function draw() {
             const canvas = document.getElementById('c');
             const ctx = canvas.getContext('2d');
+            
+            // Draw Background
             ctx.fillStyle = "#050505";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
+            // Draw Grid
             ctx.strokeStyle = "#1a1a1a";
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -302,15 +304,95 @@
             for (let i = 0; i <= window.rows; i++) { ctx.moveTo(0, i * gridSize); ctx.lineTo(canvas.width, i * gridSize); }
             ctx.stroke();
 
+            // Draw Food
             ctx.fillStyle = "#ffff00";
-            foods.forEach(f => ctx.fillRect(f.x * gridSize + 2, (window.rows - 1 - f.y) * gridSize + 2, gridSize - 4, gridSize - 4));
+            foods.forEach(f => {
+                ctx.beginPath();
+                ctx.arc(f.x * gridSize + gridSize / 2, (window.rows - 1 - f.y) * gridSize + gridSize / 2, gridSize / 2 - 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
 
             const drawBody = (s, bodyColor, headColor) => {
                 if (!s.body || s.body.length === 0) return;
-                s.body.forEach((b, i) => {
+
+                // 1. Draw connecting spine segments (tapered)
+                ctx.lineCap = "round";
+                for (let i = s.body.length - 1; i > 0; i--) {
+                    const b1 = s.body[i];
+                    const b2 = s.body[i - 1];
+                    
+                    // Taper spine from 50% width at neck to 15% at tail
+                    const minSpineScale = 0.15;
+                    const ratio = 1 - (i / (s.body.length - 1));
+                    const spineScale = minSpineScale + (0.5 - minSpineScale) * ratio;
+                    
+                    ctx.lineWidth = gridSize * spineScale;
+                    ctx.strokeStyle = bodyColor;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(b1.x * gridSize + gridSize / 2, (window.rows - 1 - b1.y) * gridSize + gridSize / 2);
+                    ctx.lineTo(b2.x * gridSize + gridSize / 2, (window.rows - 1 - b2.y) * gridSize + gridSize / 2);
+                    ctx.stroke();
+                }
+
+                // 2. Draw the segment nodes (tapered & rounded)
+                for (let i = s.body.length - 1; i >= 0; i--) {
+                    const b = s.body[i];
+                    
+                    const minScale = 0.3;
+                    let scale = 1.0; // Head is full size
+                    if (i > 0 && s.body.length > 1) {
+                        const ratio = 1 - (i / (s.body.length - 1));
+                        scale = minScale + (0.8 - minScale) * ratio; // Body tapers from 80% to 30%
+                    }
+
+                    const size = (gridSize - 2) * scale;
+                    const offset = (gridSize - size) / 2;
+                    const x = b.x * gridSize + offset;
+                    const y = (window.rows - 1 - b.y) * gridSize + offset;
+
                     ctx.fillStyle = (i === 0) ? headColor : bodyColor;
-                    ctx.fillRect(b.x * gridSize + 1, (window.rows - 1 - b.y) * gridSize + 1, gridSize - 2, gridSize - 2);
-                });
+                    
+                    ctx.beginPath();
+                    if (ctx.roundRect) {
+                        ctx.roundRect(x, y, size, size, size * 0.4); // Modern curved squares
+                        ctx.fill();
+                    } else {
+                        ctx.fillRect(x, y, size, size); // Fallback
+                    }
+
+                    // 3. Draw Eyes on the head based on direction
+                    if (i === 0 && s.dir) {
+                        ctx.fillStyle = "#000";
+                        const eyeSize = Math.max(1.5, size * 0.12);
+                        const cx = b.x * gridSize + gridSize / 2;
+                        const cy = (window.rows - 1 - b.y) * gridSize + gridSize / 2;
+                        const eyeDist = size * 0.25;
+
+                        let ex1, ey1, ex2, ey2;
+                        const dx = s.dir.x || 0;
+                        const dy = s.dir.y || 0;
+
+                        if (dx === 1) { // RIGHT
+                            ex1 = cx + eyeDist; ey1 = cy - eyeDist;
+                            ex2 = cx + eyeDist; ey2 = cy + eyeDist;
+                        } else if (dx === -1) { // LEFT
+                            ex1 = cx - eyeDist; ey1 = cy - eyeDist;
+                            ex2 = cx - eyeDist; ey2 = cy + eyeDist;
+                        } else if (dy === -1) { // DOWN (visual y increases)
+                            ex1 = cx - eyeDist; ey1 = cy + eyeDist;
+                            ex2 = cx + eyeDist; ey2 = cy + eyeDist;
+                        } else { // UP (visual y decreases) - default
+                            ex1 = cx - eyeDist; ey1 = cy - eyeDist;
+                            ex2 = cx + eyeDist; ey2 = cy - eyeDist;
+                        }
+
+                        ctx.beginPath();
+                        ctx.arc(ex1, ey1, eyeSize, 0, Math.PI * 2);
+                        ctx.arc(ex2, ey2, eyeSize, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
             };
 
             drawBody(player, "#00ccff", "#ffffff");
@@ -319,19 +401,35 @@
             document.getElementById("s1").innerHTML = `${player.score} <small>(HP: ${player.health})</small>`;
             document.getElementById("s2").innerHTML = `${ai.score} <small>(HP: ${ai.health})</small>`;
         }
+        function queuePlayerInput(newDir) {
+            let lastDir = playerInputQueue.length > 0 
+                ? playerInputQueue[playerInputQueue.length - 1] 
+                : player.dir;
+
+            // Prevent 180-degree turns against the last intended direction
+            if (newDir.x === -lastDir.x && newDir.y === -lastDir.y) return;
+            // Prevent duplicate inputs in a row
+            if (newDir.x === lastDir.x && newDir.y === lastDir.y) return;
+
+            // Max buffer size of 2 inputs
+            if (playerInputQueue.length < 2) {
+                playerInputQueue.push(newDir);
+            }
+        }
+
+        // Direct override
         function setPlayerDir(newDir) {
+            playerInputQueue = [];
             if (player.body.length > 1) {
                 const head = player.body[0];
                 const neck = player.body[1];
-                const nextX = head.x + newDir.x;
-                const nextY = head.y + newDir.y;
-                if (nextX === neck.x && nextY === neck.y) {
-                    console.log("180 Degree turn blocked");
+                if (head.x + newDir.x === neck.x && head.y + newDir.y === neck.y) {
                     return;
                 }
             }
             player.dir = newDir;
         }
+
         function updateP1Dir() { 
             const val = document.getElementById("p1-dir-sel").value;
             setPlayerDir(DIRS[val]); 
@@ -439,15 +537,21 @@
 
                 // Check if it's one of your custom shortcuts
                 if(e.code === "Space" || map[e.key]) {
-                    // ONLY prevent default if it's a shortcut we are handling ourselves
                     e.preventDefault(); 
                 }
 
                 if(e.code === "Space") {
                     step();
                 } else if(map[e.key]) {
-                    setPlayerDir(DIRS[map[e.key]]);
-                    document.getElementById("p1-dir-sel").value = map[e.key];
+                    const dirName = map[e.key];
+                    const newDir = DIRS[dirName];
+
+                    if (autoInterval) {
+                        queuePlayerInput(newDir);
+                    } else {
+                        setPlayerDir(newDir);
+                        document.getElementById("p1-dir-sel").value = dirName;
+                    }
                 }
 
                 if (e.key === "m" || e.key === "M") window.SnakeAI.runDebugAnalysis();

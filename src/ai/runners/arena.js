@@ -14,8 +14,10 @@ const SELF_PLAY = args.includes('--self');
 // MODES
 const VISUAL_MODE = args.includes('--visual') || args.includes('-v');
 const DEBUG_MODE = args.includes('--debug'); 
-const FIND_LONGEST = args.includes('--find-longest');
 const ONLY_LOSS = args.includes('--only-loss');
+
+const FIND_ARG = args.find(a => a.startsWith('--find='));
+const FIND_MODE = FIND_ARG ? FIND_ARG.split('=')[1].toLowerCase() : null;
 
 // SETTINGS
 const GAMES_ARG = args.find(a => a.startsWith('--games'));
@@ -24,14 +26,13 @@ const SEED_ARG = args.find(a => a.startsWith('--seed'));
 const OPPONENT_ARG = args.find(a => a.startsWith('--opponent='));
 const OPPONENT_NAME = OPPONENT_ARG ? OPPONENT_ARG.split('=')[1] : "snakebot";
 
-// Determine total games
-const TOTAL_GAMES = (VISUAL_MODE || DEBUG_MODE && !FIND_LONGEST) ? 1 : 
+const TOTAL_GAMES = (VISUAL_MODE || DEBUG_MODE && !FIND_MODE) ? 1 : 
     (GAMES_ARG ? parseInt(GAMES_ARG.split('=')[1] || args[args.indexOf('--games') + 1]) : 100);
 
 const CONFIG = {
     width: 16,
     height: 9,
-    delay: 5,
+    delay: 50,
     initialFood: STANDARD_FOOD_SETTINGS.initialFood,
     minimumFood: STANDARD_FOOD_SETTINGS.minimumFood,
     foodSpawnChance: STANDARD_FOOD_SETTINGS.foodSpawnChance,
@@ -49,7 +50,7 @@ const CYAN = "\x1b[36m";
 const BOT_ROSTER = [
     { name: "JS-Bot",         url: "http://localhost:9000", color: BLUE, type: "modern" },
     { name: "snakebot",       url: "http://localhost:8000", color: GREEN, type: "legacy" },
-    { name: "shapeshifter",     url: "http://localhost:8080", color: GREEN, type: "standard" },
+    { name: "shapeshifter",   url: "http://localhost:8080", color: GREEN, type: "standard" },
     { name: "snek-two",       url: "http://localhost:7000", color: RED,   type: "legacy" }
 ];
 
@@ -185,10 +186,9 @@ function generateDeathJSON(history, reason = "Unknown") {
     const s1 = snapshot.board.snakes.find(s => s.id === "s1"); // Blue (My Bot)
     const s2 = snapshot.board.snakes.find(s => s.id === "s2"); // Red (Enemy)
 
-    // JSON Structure matches the specific visualizer requirements
     const output = {
-        p: s2 ? s2.body : [], // Enemy mapped to 'Player' (Blue in HTML)
-        a: s1 ? s1.body : [], // My Bot mapped to 'AI' (Pink in HTML)
+        p: s2 ? s2.body : [],
+        a: s1 ? s1.body : [],
         foods: snapshot.board.food,
         pHealth: s2 ? s2.health : 0,
         aHealth: s1 ? s1.health : 0,
@@ -203,6 +203,53 @@ function generateDeathJSON(history, reason = "Unknown") {
     console.log(`${YELLOW}====================================${RESET}\n`);
 }
 
+// --- BUCKETING HELPERS FOR STATS ---
+
+const turnBins = [
+    "0-100", "101-200", "201-300", "301-400", "401-500", 
+    "501-600", "601-700", "701-800", "801-900", "901-1000", 
+    "1000+"
+];
+
+function getTurnBin(turns) {
+    if (turns <= 100)  return "0-100";
+    if (turns <= 200)  return "101-200";
+    if (turns <= 300)  return "201-300";
+    if (turns <= 400)  return "301-400";
+    if (turns <= 500)  return "401-500";
+    if (turns <= 600)  return "501-600";
+    if (turns <= 700)  return "601-700";
+    if (turns <= 800)  return "701-800";
+    if (turns <= 900)  return "801-900";
+    if (turns <= 1000) return "901-1000";
+    return "1000+";
+}
+
+const lengthBins = [
+    "0-5", "6-10", "11-15", "16-20", "21-25", "26-30", 
+    "31-35", "36-40", "41-45", "46-50", "51-55", "56-60", 
+    "61-65", "66-70", "70+"
+];
+
+function getLengthBin(len) {
+    if (len <= 5)  return "0-5";
+    if (len <= 10) return "6-10";
+    if (len <= 15) return "11-15";
+    if (len <= 20) return "16-20";
+    if (len <= 25) return "21-25";
+    if (len <= 30) return "26-30";
+    if (len <= 35) return "31-35";
+    if (len <= 40) return "36-40";
+    if (len <= 45) return "41-45";
+    if (len <= 50) return "46-50";
+    if (len <= 55) return "51-55";
+    if (len <= 60) return "56-60";
+    if (len <= 65) return "61-65";
+    if (len <= 70) return "66-70";
+    return "70+";
+}
+
+
 // --- GAME ENGINE ---
 
 async function runMatch(gameSeed) {
@@ -211,6 +258,7 @@ async function runMatch(gameSeed) {
 
     const pad = 2;
     let history = []; 
+    let finalLengths = { s1: 3, s2: 3 }; // Initialize to starting length
 
     let state = {
         turn: 0,
@@ -288,7 +336,6 @@ async function runMatch(gameSeed) {
 
                     return { id: snake.id, dir };
                 } else {
-                    // networked bot
                     const botType = config.type;
                     const payload = formatPayload(state, snake, botType);
                     const resp = await axios.post(`${config.url}/move`, payload, { timeout: 600 });
@@ -301,8 +348,8 @@ async function runMatch(gameSeed) {
 
         const moves = await Promise.all(moveRequests);
 
-        // 2. Snapshot History (Only needed if we might print it)
-        if (DEBUG_MODE || FIND_LONGEST) {
+        // 2. Snapshot History
+        if (DEBUG_MODE || FIND_MODE) {
             const opponentMove = moves.find(m => m.id === "s2")?.dir || "UP";
             history.push({
                 board: JSON.parse(JSON.stringify(state.board)),
@@ -339,6 +386,11 @@ async function runMatch(gameSeed) {
             }
         });
 
+        // Capture snake lengths for stats right before any deaths are applied
+        state.board.snakes.forEach(s => {
+            finalLengths[s.id] = s.body.length;
+        });
+
         // 4. Resolve Deaths
         let newSurvivors = [];
         
@@ -359,7 +411,6 @@ async function runMatch(gameSeed) {
             }
             // C. Collisions
             else {
-                // Body
                 const bodyHit = state.board.snakes.some(other => 
                     other.body.some((part, idx) => {
                         if (other.id === s.id && idx === 0) return false; 
@@ -370,7 +421,6 @@ async function runMatch(gameSeed) {
                     dead = true;
                     reason = "Body";
                 } else {
-                    // Head-to-Head
                     const headHit = state.board.snakes.some(other => {
                         if (other.id === s.id) return false;
                         if (other.body[0].x === h.x && other.body[0].y === h.y) {
@@ -386,7 +436,6 @@ async function runMatch(gameSeed) {
             }
 
             if(dead) {
-                // Record Stats
                 const pName = s.id === "s1" ? PLAYER_1.name : PLAYER_2.name;
                 if(deathStats[pName] && reason) {
                     deathStats[pName][reason]++;
@@ -396,7 +445,6 @@ async function runMatch(gameSeed) {
             }
         }
 
-        // Check who died
         if (!newSurvivors.find(s => s.id === "s1") && state.board.snakes.find(s => s.id === "s1")) blueDied = true;
         state.board.snakes = newSurvivors;
 
@@ -409,8 +457,7 @@ async function runMatch(gameSeed) {
             foodSettings
         );
 
-        // Immediate Debug Exit (Only if not in Find Longest mode)
-        if (blueDied && DEBUG_MODE && !FIND_LONGEST) {
+        if (blueDied && DEBUG_MODE && !FIND_MODE) {
             if (!ONLY_LOSS || blueDied) {
                 generateDeathJSON(history, "Debug Mode Death");
                 process.exit(0);
@@ -427,11 +474,11 @@ async function runMatch(gameSeed) {
         }
     }
 
-    if (VISUAL_MODE && !DEBUG_MODE && !FIND_LONGEST) {
+    if (VISUAL_MODE && !DEBUG_MODE && !FIND_MODE) {
         console.log(`\nGAME OVER! Result: ${winner ? winner : 'Draw'}`);
     }
 
-    return { winner, turns: state.turn, history, blueDied };
+    return { winner, turns: state.turn, history, blueDied, finalLengths };
 }
 
 // --- MAIN LOOP ---
@@ -444,26 +491,55 @@ async function main() {
     console.log(`Games: ${TOTAL_GAMES} | Initial Seed: ${baseSeed}`);
     console.log(`-------------------------------\n`);
 
-    let longestGame = { turns: -1, history: null, seed: null, winner: null };
+    let targetGame = { 
+        turns: FIND_MODE === 'shortest' ? Infinity : -1, 
+        history: null, 
+        seed: null, 
+        winner: null 
+    };
+
+    // Stat Trackers for Tables
+    let turnDistribution = {};
+    let lengthDistributionP1 = {};
+    let lengthDistributionP2 = {};
+
+    // Initialize stat buckets to 0
+    turnBins.forEach(b => turnDistribution[b] = 0);
+    lengthBins.forEach(b => {
+        lengthDistributionP1[b] = 0;
+        lengthDistributionP2[b] = 0;
+    });
 
     for (let i = 0; i < TOTAL_GAMES; i++) {
         let matchSeed = (baseSeed + i) % 4294967296; 
         
         const result = await runMatch(matchSeed);
         
+        // Track standard Win/Loss
         if (result.winner === PLAYER_1.name) stats[PLAYER_1.name]++;
         else if (result.winner === PLAYER_2.name) stats[PLAYER_2.name]++;
         else stats.draws++;
 
-        if (FIND_LONGEST) {
+        // Track Turn/Length Distribution
+        turnDistribution[getTurnBin(result.turns)]++;
+        lengthDistributionP1[getLengthBin(result.finalLengths.s1)]++;
+        lengthDistributionP2[getLengthBin(result.finalLengths.s2)]++;
+
+        if (FIND_MODE) {
             const validCandidate = !ONLY_LOSS || result.blueDied;
-            if (validCandidate && result.turns > longestGame.turns) {
-                longestGame = {
-                    turns: result.turns,
-                    history: result.history,
-                    seed: matchSeed,
-                    winner: result.winner || "Draw"
-                };
+            if (validCandidate) {
+                const isNewTarget = 
+                    (FIND_MODE === 'longest' && result.turns > targetGame.turns) ||
+                    (FIND_MODE === 'shortest' && result.turns < targetGame.turns);
+
+                if (isNewTarget) {
+                    targetGame = {
+                        turns: result.turns,
+                        history: result.history,
+                        seed: matchSeed,
+                        winner: result.winner || "Draw"
+                    };
+                }
             }
         }
 
@@ -477,10 +553,38 @@ async function main() {
     console.log(`\n${RED}Death Analysis:${RESET}`);
     console.table(deathStats);
 
-    if (FIND_LONGEST && longestGame.history) {
-        console.log(`\n${CYAN}Found Longest Game:${RESET} ${longestGame.turns} turns (Winner: ${longestGame.winner})`);
-        console.log(`Reproduce this game: bun arena --visual --seed=${longestGame.seed}`);
-        generateDeathJSON(longestGame.history, "Longest Game Snapshot");
+    // --- GENERATE TURN DISTRIBUTION TABLE ---
+    const formattedTurnTable = {};
+    turnBins.forEach(bin => {
+        const count = turnDistribution[bin];
+        formattedTurnTable[bin] = {
+            "Count": count,
+            "Percentage (%)": ((count / TOTAL_GAMES) * 100).toFixed(2) + "%"
+        };
+    });
+    console.log(`\n${CYAN}Turn Duration Distribution:${RESET}`);
+    console.table(formattedTurnTable);
+
+    // --- GENERATE LENGTH DISTRIBUTION TABLE ---
+    const formattedLengthTable = {};
+    lengthBins.forEach(bin => {
+        const p1Count = lengthDistributionP1[bin];
+        const p2Count = lengthDistributionP2[bin];
+        formattedLengthTable[bin] = {
+            [`${PLAYER_1.name} Count`]: p1Count,
+            [`${PLAYER_1.name} %`]: ((p1Count / TOTAL_GAMES) * 100).toFixed(2) + "%",
+            [`${PLAYER_2.name} Count`]: p2Count,
+            [`${PLAYER_2.name} %`]: ((p2Count / TOTAL_GAMES) * 100).toFixed(2) + "%"
+        };
+    });
+    console.log(`\n${CYAN}Final Snake Length Distribution:${RESET}`);
+    console.table(formattedLengthTable);
+
+    if (FIND_MODE && targetGame.history) {
+        const modeTitle = FIND_MODE.charAt(0).toUpperCase() + FIND_MODE.slice(1);
+        console.log(`\n${CYAN}Found ${modeTitle} Game:${RESET} ${targetGame.turns} turns (Winner: ${targetGame.winner})`);
+        console.log(`Reproduce this game: bun arena --visual --seed=${targetGame.seed}`);
+        generateDeathJSON(targetGame.history, `${modeTitle} Game Snapshot`);
     }
 }
 
