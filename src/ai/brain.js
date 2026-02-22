@@ -9,22 +9,6 @@
     const TT = hasRequire ? require('./tt') : global.SnakeAI.TT;
     
     const DIRS = Config.DIRS;
-    const ADAPTIVE_MIN_DEPTH = 13;
-
-    function getAdaptiveDepth(grid, state, requestedDepth) {
-        if (requestedDepth >= ADAPTIVE_MIN_DEPTH) return requestedDepth;
-
-        const meLen = (state.me.body && state.me.body.length) || 0;
-        const enemyLen = (state.enemy.body && state.enemy.body.length) || 0;
-        const occupied = meLen + enemyLen;
-        const density = occupied / (grid.width * grid.height);
-        // Endgame horizon guard: extend shallow searches in dense, low-mobility states.
-        if (density >= 0.52 && meLen >= 30 && enemyLen >= 30) {
-            return ADAPTIVE_MIN_DEPTH;
-        }
-
-        return requestedDepth;
-    }
 
     function getSmartMoveDebug(me, enemy, foods, cols, rows) {
         const start = Date.now();
@@ -51,8 +35,7 @@
         const initialHash = Zobrist.computeHash(grid, state.me.health, state.enemy.health);
 
         // 4. Single Pass Search
-        const adaptiveDepth = getAdaptiveDepth(grid, state, Config.MAX_DEPTH);
-        const result = alphaBeta(grid, state, adaptiveDepth, -Infinity, Infinity, 0, adaptiveDepth, initialHash);
+        const result = alphaBeta(grid, state, Config.MAX_DEPTH, -Infinity, Infinity, 0, Config.MAX_DEPTH, initialHash);
         
         let moveDir = result.move ? result.move.dir : null;
         let logStr = `Score: ${Math.floor(result.score)}`;
@@ -82,7 +65,7 @@
         const duration = Date.now() - start;
         logStr += ` | ${duration}ms`;
 
-        const root = (typeof window !== 'undefined') ? window : global;
+        const root = (typeof globalThis !== 'undefined') ? globalThis : ((typeof window !== 'undefined') ? window : global);
         if (root.SnakeAI) {
             root.SnakeAI.lastState = { grid, state };
         }

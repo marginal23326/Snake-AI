@@ -8,7 +8,8 @@
 
     const Config = {
         DIRS: DIRS,
-        MAX_DEPTH: 20,
+        MAX_DEPTH: 4,
+        DENSE_TAIL_RACE_OCCUPANCY: 0.5,
         GA: {
             SELF_PLAY_ENABLED: true,
             SELF_PLAY_SNAPSHOT_INTERVAL: 5,

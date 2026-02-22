@@ -16,6 +16,12 @@
         if (enemy.health <= 0) return debug ? { total: Config.SCORES.WIN, reason: "Enemy Dead" } : Config.SCORES.WIN;
 
         let score = 0;
+        const occupancy = (me.body.length + enemy.body.length) / (grid.width * grid.height);
+        const denseTailRace = (
+            me.body.length >= 20 &&
+            enemy.body.length >= 20 &&
+            occupancy >= Config.DENSE_TAIL_RACE_OCCUPANCY
+        );
 
         // 1. Length
         const lengthScore = me.body.length * Config.SCORES.LENGTH;
@@ -58,7 +64,9 @@
 
             if (isTrapped) {
                 iAmInDeathTrap = true;
-                const trapDeathPenalty = Config.SCORES.TRAP_DANGER; 
+                const trapDeathPenalty = denseTailRace
+                    ? (Config.SCORES.TRAP_DANGER * 0.001)
+                    : Config.SCORES.TRAP_DANGER;
                 score += trapDeathPenalty;
                 if (debug) breakdown.trapDeath = trapDeathPenalty;
             } else if (physicalSpace >= futureLength) {
@@ -82,7 +90,9 @@
             const enFutureLen = enemy.body.length + (enFF.hasFood ? 1 : 0);
 
             if (enSpace < enFutureLen && enSpace < enTimeToEscape) {
-                const enemyTrappedBonus = Config.SCORES.ENEMY_TRAPPED; 
+                const enemyTrappedBonus = denseTailRace
+                    ? (Config.SCORES.ENEMY_TRAPPED * 0.001)
+                    : Config.SCORES.ENEMY_TRAPPED;
                 score += enemyTrappedBonus;
                 if (debug) breakdown.killThreat = enemyTrappedBonus;
             }

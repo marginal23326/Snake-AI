@@ -10,6 +10,7 @@
         { dx: -1, dy: 0, dir: Config.DIRS.LEFT, dirInt: 2 },
         { dx: 1, dy: 0, dir: Config.DIRS.RIGHT, dirInt: 3 }
     ];
+    const QUIESCENCE_MAX_EXTENSIONS = 8;
 
     function getSafeNeighbors(grid, state) {
         const moves = [];
@@ -113,10 +114,25 @@
         return tailBias + headContactBias - moveIntoEnemyTailPenalty;
     }
 
+    function shouldExtendLeaf(grid, state) {
+        const myLen = state.me.body.length;
+        const enemyLen = state.enemy.body.length;
+        if (myLen < 20 || enemyLen < 20) return false;
+
+        const occ = (myLen + enemyLen) / (grid.width * grid.height);
+        if (occ < Config.DENSE_TAIL_RACE_OCCUPANCY) return false;
+
+        const myMoves = getSafeNeighbors(grid, state).length;
+        if (myMoves <= 2) return true;
+
+        const enemyMoves = getSafeNeighbors(grid, { me: state.enemy, enemy: state.me }).length;
+        return enemyMoves <= 2;
+    }
+
     /**
      * Negamax with Alpha-Beta pruning, TT, and History Heuristic.
      */
-    function negamax(grid, state, depth, alpha, beta, side = 0, rootDepth = depth, currentHash = 0n, historyTable = null) {
+    function negamax(grid, state, depth, alpha, beta, side = 0, rootDepth = depth, currentHash = 0n, historyTable = null, qDepth = 0) {
 
         if (!historyTable) {
             // Index 0 for original player (me), Index 1 for opponent.
@@ -149,6 +165,9 @@
         if (!state.enemy.body || state.enemy.body.length === 0 || state.enemy.health <= 0)
             return { score: Config.SCORES.WIN + depth, move: null };
         if (depth === 0) {
+            if (rootDepth >= 3 && qDepth < QUIESCENCE_MAX_EXTENSIONS && shouldExtendLeaf(grid, state)) {
+                return negamax(grid, state, 1, alpha, beta, side, rootDepth, currentHash, historyTable, qDepth + 1);
+            }
             const score = side === 0
                 ? evaluate(grid, state)
                 : -evaluate(grid, { me: state.enemy, enemy: state.me, food: state.food });
@@ -253,7 +272,7 @@
             };
 
             // Recurse
-            const child = negamax(grid, nextState, depth - 1, -beta, -alpha, 1 - side, rootDepth, nextHash, historyTable);
+            const child = negamax(grid, nextState, depth - 1, -beta, -alpha, 1 - side, rootDepth, nextHash, historyTable, qDepth);
 
             // --- UNDO MOVE ---
             grid.set(move.x, move.y, originalHeadVal);
@@ -269,6 +288,41 @@
             if (ateFood && !terminalBand && modifiedScore > -50000000)
                 modifiedScore += Config.SCORES.EAT_REWARD;
 
+            let structuralAdjustment = 0;
+            let continuationMoves = -1;
+            if (isRoot) {
+                const myLen = state.me.body.length;
+                const enemyLen = state.enemy.body.length;
+                const denseTailRace =
+                    myLen >= 20 &&
+                    enemyLen >= 20 &&
+                    ((myLen + enemyLen) / (grid.width * grid.height)) >= Config.DENSE_TAIL_RACE_OCCUPANCY;
+
+                continuationMoves = getSafeNeighbors(grid, {
+                    me: { body: newBody },
+                    enemy: state.enemy
+                }).length;
+
+                if (continuationMoves === 0) {
+                    structuralAdjustment += Config.SCORES.TRAP_DANGER;
+                }
+
+                if (denseTailRace) {
+                    const enemyHead = state.enemy.body[0];
+                    const enemyHeadDist = Math.abs(move.x - enemyHead.x) + Math.abs(move.y - enemyHead.y);
+                    if (continuationMoves === 1 && enemyHeadDist <= 5) {
+                        structuralAdjustment -= Math.abs(Config.SCORES.TERRITORY_CONTROL) * 120;
+                    }
+
+                    const enemyTail = state.enemy.body[state.enemy.body.length - 1];
+                    if (move.x === enemyTail.x && move.y === enemyTail.y) {
+                        structuralAdjustment -= Math.abs(Config.SCORES.TERRITORY_CONTROL) * 2;
+                    }
+                }
+            }
+
+            modifiedScore += structuralAdjustment;
+
             const tieBreak = isRoot ? rootTieBreaker(state, move) : 0;
 
             if (isRoot) {
@@ -279,6 +333,8 @@
                     collisionPenalty,
                     ate: !!ateFood,
                     modifiedScore,
+                    structuralAdjustment,
+                    continuationMoves,
                     tieBreak
                 });
             }
@@ -310,8 +366,9 @@
 
         if (isRoot) {
             try {
-                global.SnakeAI = global.SnakeAI || {};
-                global.SnakeAI._lastAlphaBetaRoot = {
+                const rootObj = (typeof globalThis !== 'undefined') ? globalThis : global;
+                rootObj.SnakeAI = rootObj.SnakeAI || {};
+                rootObj.SnakeAI._lastAlphaBetaRoot = {
                     score: bestScore,
                     move: bestMove,
                     rootDepth,
