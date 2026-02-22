@@ -73,6 +73,46 @@
         return moves;
     }
 
+    function rootTieBreaker(state, move) {
+        const myBody = state.me.body;
+        if (!myBody || myBody.length === 0) return 0;
+
+        const enemyBody = state.enemy.body || [];
+        const myLen = myBody.length;
+        const enemyLen = enemyBody.length;
+
+        let moveIntoEnemyTailPenalty = 0;
+        if (enemyBody && enemyBody.length > 0) {
+            const enemyTail = enemyBody[enemyBody.length - 1];
+            if (move.x === enemyTail.x && move.y === enemyTail.y) {
+                moveIntoEnemyTailPenalty = 0.5;
+            }
+        }
+
+        let headContactBias = 0;
+        if (enemyBody.length > 0) {
+            const enemyHead = enemyBody[0];
+            const distToEnemyHead = Math.abs(move.x - enemyHead.x) + Math.abs(move.y - enemyHead.y);
+            if (distToEnemyHead === 1) {
+                if (myLen > enemyLen) headContactBias += 2;
+                else if (myLen < enemyLen) headContactBias -= 1000;
+                else headContactBias -= 500;
+            }
+        }
+
+        let tailBias = 0;
+        if (state.cols && state.rows && myLen >= 20 && enemyLen >= 20) {
+            const density = (myLen + enemyLen) / (state.cols * state.rows);
+            if (density >= 0.4) {
+                const myTail = myBody[myBody.length - 1];
+                const tailDist = Math.abs(move.x - myTail.x) + Math.abs(move.y - myTail.y);
+                tailBias = -tailDist;
+            }
+        }
+
+        return tailBias + headContactBias - moveIntoEnemyTailPenalty;
+    }
+
     /**
      * Negamax with Alpha-Beta pruning, TT, and History Heuristic.
      */
@@ -155,6 +195,7 @@
 
         let bestMove = moves[0];
         let bestScore = -Infinity;
+        let bestTieBreak = -Infinity;
         const isRoot = (rootDepth === depth && side === 0);
         const childRecords = isRoot ? [] : null;
 
@@ -224,8 +265,11 @@
             if (collisionPenalty !== 0)
                 modifiedScore = Math.min(modifiedScore, collisionPenalty);
 
-            if (ateFood && modifiedScore > -50000000)
+            const terminalBand = Math.abs(modifiedScore) >= (Math.abs(Config.SCORES.WIN) * 0.9);
+            if (ateFood && !terminalBand && modifiedScore > -50000000)
                 modifiedScore += Config.SCORES.EAT_REWARD;
+
+            const tieBreak = isRoot ? rootTieBreaker(state, move) : 0;
 
             if (isRoot) {
                 childRecords.push({
@@ -234,14 +278,19 @@
                     rawRecursionScore: child.score,
                     collisionPenalty,
                     ate: !!ateFood,
-                    modifiedScore
+                    modifiedScore,
+                    tieBreak
                 });
             }
 
             // --- ALPHA-BETA UPDATE
-            if (modifiedScore > bestScore) {
+            if (
+                modifiedScore > bestScore ||
+                (Math.abs(modifiedScore - bestScore) <= 1e-9 && tieBreak > bestTieBreak)
+            ) {
                 bestScore = modifiedScore;
                 bestMove = move;
+                bestTieBreak = tieBreak;
             }
             if (bestScore > alpha) alpha = bestScore;
 

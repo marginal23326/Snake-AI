@@ -37,7 +37,7 @@ const CONFIG = {
     minimumFood: STANDARD_FOOD_SETTINGS.minimumFood,
     foodSpawnChance: STANDARD_FOOD_SETTINGS.foodSpawnChance,
 };
-const SNAPSHOT_TICKS = 25; 
+const SNAPSHOT_TICKS = 10; 
 
 // COLORS
 const RESET = "\x1b[0m";

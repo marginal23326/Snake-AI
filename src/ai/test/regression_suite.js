@@ -26,6 +26,12 @@ function evaluateScenariosAtCurrentDepth(scenarios, options = {}) {
     const logPerScenario = options.logPerScenario !== false;
     const logPasses = options.logPasses !== false;
     const logFailures = options.logFailures !== false;
+    
+    const currentDepth = options.currentDepth || Config.MAX_DEPTH;
+    const depthLabel = options.currentDepth ? ` [Depth: ${options.currentDepth}]` : '';
+
+    const RED = '\x1b[31m';
+    const RESET = '\x1b[0m';
 
     let passed = 0;
     let failed = 0;
@@ -56,14 +62,14 @@ function evaluateScenariosAtCurrentDepth(scenarios, options = {}) {
                 passed++;
             } else {
                 if (logPerScenario && logFailures) {
-                    console.log(`FAIL ${file} (Expected: ${expectedMove}, Got: ${actualMove})`);
+                    console.log(`${RED}FAIL ${file}${depthLabel} (Expected: ${expectedMove}, Got: ${actualMove})${RESET}`);
                 }
                 failed++;
             }
         } else if (avoidList.length > 0) {
             if (avoidList.includes(actualMove)) {
                 if (logPerScenario && logFailures) {
-                    console.log(`FAIL ${file} (Avoid: [${avoidList.join(', ')}], Got: ${actualMove})`);
+                    console.log(`${RED}FAIL ${file}${depthLabel} (Avoid: [${avoidList.join(', ')}], Got: ${actualMove})${RESET}`);
                 }
                 failed++;
             } else {
@@ -197,7 +203,8 @@ function runRegressionSuite(options = {}) {
             const perDepth = evaluateScenariosAtCurrentDepth(scenarios, {
                 logPerScenario: quiet ? quietFailOnly : logPerScenario,
                 logPasses: quiet ? false : logPasses,
-                logFailures: quiet ? quietFailOnly : logFailures
+                logFailures: quiet ? quietFailOnly : logFailures,
+                currentDepth: depth // UPDATED: Passing the explicit depth here
             });
             const depthMs = Date.now() - depthStart;
 
