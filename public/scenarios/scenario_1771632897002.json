@@ -1,7 +1,7 @@
 {
-  "id": 1771632897094,
-  "name": "Scenario 1771632897094",
-  "expectedMove": "down",
+  "id": 1771632897002,
+  "name": "Scenario 1771632897002",
+  "expectedMove": "left",
   "rawRequest": {
     "board": {
       "height": 9,
@@ -33,7 +33,7 @@
             }
           ],
           "length": 4,
-          "health": 5
+          "health": 53
         },
         {
           "id": "player-opponent-for-test",
@@ -82,8 +82,8 @@
           "y": 3
         },
         {
-          "x": 15,
-          "y": 4
+          "x": 9,
+          "y": 7
         }
       ]
     },
@@ -113,7 +113,7 @@
         }
       ],
       "length": 4,
-      "health": 5
+      "health": 53
     }
   }
 }
