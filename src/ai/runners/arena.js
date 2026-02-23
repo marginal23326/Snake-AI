@@ -1,4 +1,6 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 const { getSmartMoveDebug } = require('../brain');
 const {
     STANDARD_FOOD_SETTINGS,
@@ -9,35 +11,114 @@ const {
 // --- CONFIGURATION & ARGS ---
 const args = process.argv.slice(2);
 
-const SELF_PLAY = args.includes('--self');
+function hasFlag(names) {
+    return args.some(a => names.includes(a));
+}
+
+function parseIntOrDefault(value, defaultValue, min = 0) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed >= min ? parsed : defaultValue;
+}
+
+function getArgValues(names) {
+    const values = [];
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        if (names.includes(arg)) {
+            const next = args[i + 1];
+            if (next && !next.startsWith('-')) {
+                values.push(next);
+                i++;
+            } else {
+                values.push(null);
+            }
+            continue;
+        }
+
+        const matchedPrefix = names.find(name => arg.startsWith(`${name}=`));
+        if (matchedPrefix) {
+            values.push(arg.slice(matchedPrefix.length + 1));
+        }
+    }
+    return values;
+}
+
+function getArgValue(names) {
+    const values = getArgValues(names);
+    return values.find(v => v !== null) ?? null;
+}
+
+const SELF_PLAY = hasFlag(['--self', '-p']);
+const RESUME_MODE = hasFlag(['--resume', '--load-snapshot', '-r']);
 
 // MODES
-const VISUAL_MODE = args.includes('--visual') || args.includes('-v');
-const DEBUG_MODE = args.includes('--debug'); 
-const ONLY_LOSS = args.includes('--only-loss');
+const VISUAL_MODE = hasFlag(['--visual', '-v']);
+const DEBUG_MODE = hasFlag(['--debug', '-d']);
+const ONLY_LOSS = hasFlag(['--only-loss', '--loss-only', '-l']);
 
-const FIND_ARG = args.find(a => a.startsWith('--find='));
-const FIND_MODE = FIND_ARG ? FIND_ARG.split('=')[1].toLowerCase() : null;
+const FIND_VALUES = getArgValues(['--find', '-f']);
+const FIND_MODE_ALIASES = {
+    shortest: "shortest",
+    longest: "longest",
+    "shortest-turns": "shortest",
+    "longest-turns": "longest",
+    st: "shortest",
+    lt: "longest",
+    "shortest-snake": "shortest-snake",
+    "longest-snake": "longest-snake",
+    ss: "shortest-snake",
+    ls: "longest-snake"
+};
+const VALID_FIND_MODES = new Set(["shortest", "longest", "shortest-snake", "longest-snake"]);
+const FIND_MODES_RAW = FIND_VALUES
+    .filter(v => v !== null)
+    .flatMap(v => String(v).split(','))
+    .map(v => v.trim().toLowerCase())
+    .filter(Boolean);
+
+const FIND_MODES = [];
+const INVALID_FIND_MODES = [];
+for (const raw of FIND_MODES_RAW) {
+    const normalized = FIND_MODE_ALIASES[raw] || raw;
+    if (VALID_FIND_MODES.has(normalized)) {
+        if (!FIND_MODES.includes(normalized)) FIND_MODES.push(normalized);
+    } else {
+        INVALID_FIND_MODES.push(raw);
+    }
+}
+const HAS_FIND_MODE = FIND_MODES.length > 0;
 
 // SETTINGS
-const GAMES_ARG = args.find(a => a.startsWith('--games'));
-const SEED_ARG = args.find(a => a.startsWith('--seed'));
+const GAMES_VALUE = getArgValue(['--games', '-g']);
+const SEED_VALUE = getArgValue(['--seed', '-s']);
+const OPPONENT_VALUE = getArgValue(['--opponent', '-o']);
+const RESUME_FILE_VALUE = getArgValue(['--resume-file', '--snapshot-file', '-R']);
+const DELAY_VALUE = getArgValue(['--delay', '-D']);
+const REQUEST_TIMEOUT_VALUE = getArgValue(['--request-timeout', '--req-timeout', '-t']);
+const PAYLOAD_TIMEOUT_VALUE = getArgValue(['--payload-timeout', '--move-timeout', '-T']);
+const SNAPSHOT_TICKS_VALUE = getArgValue(['--snapshot-ticks', '--snapshots', '-k']);
+const parsedGames = parseIntOrDefault(GAMES_VALUE, 100, 1);
+const parsedSeed = Number.parseInt(SEED_VALUE, 10);
+const parsedDelay = parseIntOrDefault(DELAY_VALUE, 50, 0);
+const parsedRequestTimeout = parseIntOrDefault(REQUEST_TIMEOUT_VALUE, 600, 1);
+const parsedPayloadTimeout = parseIntOrDefault(PAYLOAD_TIMEOUT_VALUE, 40, 1);
+const parsedSnapshotTicks = parseIntOrDefault(SNAPSHOT_TICKS_VALUE, 10, 1);
 
-const OPPONENT_ARG = args.find(a => a.startsWith('--opponent='));
-const OPPONENT_NAME = OPPONENT_ARG ? OPPONENT_ARG.split('=')[1] : "snakebot";
-
-const TOTAL_GAMES = (VISUAL_MODE || DEBUG_MODE && !FIND_MODE) ? 1 : 
-    (GAMES_ARG ? parseInt(GAMES_ARG.split('=')[1] || args[args.indexOf('--games') + 1]) : 100);
+const TOTAL_GAMES = (RESUME_MODE || VISUAL_MODE || DEBUG_MODE && !HAS_FIND_MODE) ? 1 : 
+    parsedGames;
+const SNAPSHOT_FILE_PATH = path.resolve(RESUME_FILE_VALUE || path.join(__dirname, 'arena_snapshot.json'));
 
 const CONFIG = {
     width: 16,
     height: 9,
-    delay: 50,
+    delay: parsedDelay,
+    requestTimeout: parsedRequestTimeout,
+    payloadTimeout: parsedPayloadTimeout,
     initialFood: STANDARD_FOOD_SETTINGS.initialFood,
     minimumFood: STANDARD_FOOD_SETTINGS.minimumFood,
     foodSpawnChance: STANDARD_FOOD_SETTINGS.foodSpawnChance,
 };
-const SNAPSHOT_TICKS = 10; 
+const SNAPSHOT_TICKS = parsedSnapshotTicks; 
 
 // COLORS
 const RESET = "\x1b[0m";
@@ -49,7 +130,6 @@ const CYAN = "\x1b[36m";
 
 const BOT_ROSTER = [
     { name: "JS-Bot",         url: "http://localhost:9000", color: BLUE, type: "modern" },
-    { name: "snakebot",       url: "http://localhost:8000", color: GREEN, type: "legacy" },
     { name: "shapeshifter",   url: "http://localhost:8080", color: GREEN, type: "standard" },
     { name: "snek-two",       url: "http://localhost:7000", color: RED,   type: "legacy" }
 ];
@@ -61,9 +141,8 @@ if (SELF_PLAY) {
     PLAYER_1 = { ...PLAYER_1, type: "local", url: null };
     PLAYER_2 = { ...PLAYER_1, name: `${PLAYER_1.name}-red`, url: null, type: "local" };
 } else {
-    const OPPONENT_ARG = args.find(a => a.startsWith('--opponent='));
-    const OPPONENT_NAME = OPPONENT_ARG ? OPPONENT_ARG.split('=')[1] : "snakebot";
-    PLAYER_2 = BOT_ROSTER.find(b => b.name === OPPONENT_NAME) || BOT_ROSTER[1];
+    const OPPONENT_NAME = OPPONENT_VALUE || "JS-Bot";
+    PLAYER_2 = BOT_ROSTER.find(b => b.name === OPPONENT_NAME) || BOT_ROSTER[0];
 }
 
 let stats = { [PLAYER_1.name]: 0, [PLAYER_2.name]: 0, draws: 0 };
@@ -74,7 +153,7 @@ let deathStats = {
 };
 
 // --- RNG (MATCHING INDEX.HTML) ---
-let currentSeed = SEED_ARG ? parseInt(SEED_ARG.split('=')[1]) : Math.floor(Math.random() * 2000000000);
+let currentSeed = Number.isFinite(parsedSeed) ? parsedSeed : Math.floor(Math.random() * 2000000000);
 const INITIAL_SEED = currentSeed; // Store initial to print later if needed
 
 function seededRandom() {
@@ -87,6 +166,76 @@ function seededRandom() {
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 function invertY(y, height) { return height - 1 - y; }
+function formatDisplayPath(fullPath) {
+    const relative = path.relative(process.cwd(), fullPath);
+    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+        return relative;
+    }
+
+    const normalized = String(fullPath).replace(/\\/g, '/');
+    const parts = normalized.split('/').filter(Boolean);
+    if (parts.length <= 4) return fullPath;
+    return `.../${parts.slice(-4).join('/')}`;
+}
+function normalizeMove(move) {
+    if (!move) return null;
+    const value = String(move).trim().toLowerCase();
+    return ["up", "down", "left", "right"].includes(value) ? value : null;
+}
+
+function sanitizePointArray(points) {
+    if (!Array.isArray(points)) return [];
+    return points
+        .map(p => ({ x: Number.parseInt(p?.x, 10), y: Number.parseInt(p?.y, 10) }))
+        .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+
+function loadSnapshotFromFile(filePath) {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(raw);
+
+    const localBody = sanitizePointArray(parsed.a);
+    const opponentBody = sanitizePointArray(parsed.p);
+    const foods = sanitizePointArray(parsed.foods);
+
+    if (localBody.length === 0 || opponentBody.length === 0) {
+        throw new Error("Snapshot is missing valid snake bodies.");
+    }
+
+    const cols = Number.parseInt(parsed.cols, 10);
+    const rows = Number.parseInt(parsed.rows, 10);
+    if (Number.isFinite(cols) && Number.isFinite(rows)) {
+        if (cols !== CONFIG.width || rows !== CONFIG.height) {
+            throw new Error(`Snapshot board ${cols}x${rows} does not match arena board ${CONFIG.width}x${CONFIG.height}.`);
+        }
+    }
+
+    const localHealth = parseIntOrDefault(parsed.aHealth, 100, 0);
+    const opponentHealth = parseIntOrDefault(parsed.pHealth, 100, 0);
+    const seed = Number.parseInt(parsed.seed, 10);
+    const turn = parseIntOrDefault(parsed.turn, 0, 0);
+    const opponentMoves = Array.isArray(parsed.opponentMoves)
+        ? parsed.opponentMoves.map(normalizeMove).filter(Boolean)
+        : [];
+
+    return {
+        seed: Number.isFinite(seed) ? seed : null,
+        turn,
+        opponentMoves,
+        state: {
+            turn,
+            board: {
+                width: CONFIG.width,
+                height: CONFIG.height,
+                food: foods,
+                snakes: [
+                    { id: "s1", body: localBody, health: localHealth },
+                    { id: "s2", body: opponentBody, health: opponentHealth }
+                ]
+            }
+        }
+    };
+}
 
 function formatPayload(state, you, botType) {
     const formatPoint = (p) => ({ x: p.x, y: p.y });
@@ -98,7 +247,7 @@ function formatPayload(state, you, botType) {
                 ruleset: { name: "standard", version: "v1.2.3" }, 
                 map: "standard",
                 source: "arena.js",
-                timeout: 400 
+                timeout: CONFIG.payloadTimeout 
             },
             turn: state.turn,
             board: {
@@ -181,6 +330,7 @@ function drawBoard(state) {
 function generateDeathJSON(history, reason = "Unknown") {
     const index = Math.max(0, history.length - SNAPSHOT_TICKS);
     const snapshot = history[index];
+    if (!snapshot) return;
     const subsequentMoves = history.slice(index).map(h => h.opponentMove).filter(m => m !== null);
 
     const s1 = snapshot.board.snakes.find(s => s.id === "s1"); // Blue (My Bot)
@@ -194,6 +344,7 @@ function generateDeathJSON(history, reason = "Unknown") {
         aHealth: s1 ? s1.health : 0,
         cols: CONFIG.width,
         rows: CONFIG.height,
+        turn: snapshot.turn || 0,
         seed: snapshot.seed,
         opponentMoves: subsequentMoves
     };
@@ -201,6 +352,14 @@ function generateDeathJSON(history, reason = "Unknown") {
     console.log(`\n${YELLOW}=== JSON EXPORT (${reason}) ===${RESET}`);
     console.log(JSON.stringify(output, null, 2));
     console.log(`${YELLOW}====================================${RESET}\n`);
+
+    try {
+        fs.writeFileSync(SNAPSHOT_FILE_PATH, JSON.stringify(output, null, 2), 'utf8');
+        console.log(`${CYAN}Snapshot saved:${RESET} ${formatDisplayPath(SNAPSHOT_FILE_PATH)}`);
+        console.log(`Resume from it: bun arena --visual --resume`);
+    } catch (error) {
+        console.log(`${RED}Failed to save snapshot:${RESET} ${error.message}`);
+    }
 }
 
 // --- BUCKETING HELPERS FOR STATS ---
@@ -252,7 +411,7 @@ function getLengthBin(len) {
 
 // --- GAME ENGINE ---
 
-async function runMatch(gameSeed) {
+async function runMatch(gameSeed, resumeSnapshot = null) {
     // Reset RNG to the specific seed for this match
     currentSeed = gameSeed;
 
@@ -260,25 +419,41 @@ async function runMatch(gameSeed) {
     let history = []; 
     let finalLengths = { s1: 3, s2: 3 }; // Initialize to starting length
 
-    let state = {
-        turn: 0,
-        board: {
-            width: CONFIG.width, height: CONFIG.height,
-            food: [],
-            snakes: [
-                { id: "s1", body: [{ x: pad, y: pad }, { x: pad, y: pad-1 }, { x: pad, y: pad-2 }], health: 100 },
-                { 
-                    id: "s2", 
-                    body: [
-                        { x: CONFIG.width - pad - 1, y: CONFIG.height - pad - 1 }, 
-                        { x: CONFIG.width - pad - 1, y: CONFIG.height - pad }, 
-                        { x: CONFIG.width - pad - 1, y: CONFIG.height - pad + 1 }
-                    ], 
-                    health: 100 
-                }
-            ]
-        }
-    };
+    let state;
+    const scriptedOpponentMoves = resumeSnapshot?.opponentMoves ? [...resumeSnapshot.opponentMoves] : [];
+
+    if (resumeSnapshot?.state) {
+        state = JSON.parse(JSON.stringify(resumeSnapshot.state));
+        state.board.width = CONFIG.width;
+        state.board.height = CONFIG.height;
+        state.board.food = sanitizePointArray(state.board.food);
+        state.board.snakes = state.board.snakes.map(s => ({
+            ...s,
+            body: sanitizePointArray(s.body)
+        }));
+    } else {
+        state = {
+            turn: 0,
+            board: {
+                width: CONFIG.width, height: CONFIG.height,
+                food: [],
+                snakes: [
+                    { id: "s1", body: [{ x: pad, y: pad }, { x: pad, y: pad-1 }, { x: pad, y: pad-2 }], health: 100 },
+                    { 
+                        id: "s2", 
+                        body: [
+                            { x: CONFIG.width - pad - 1, y: CONFIG.height - pad - 1 }, 
+                            { x: CONFIG.width - pad - 1, y: CONFIG.height - pad }, 
+                            { x: CONFIG.width - pad - 1, y: CONFIG.height - pad + 1 }
+                        ], 
+                        health: 100 
+                    }
+                ]
+            }
+        };
+    }
+    finalLengths.s1 = state.board.snakes.find(s => s.id === "s1")?.body?.length || finalLengths.s1;
+    finalLengths.s2 = state.board.snakes.find(s => s.id === "s2")?.body?.length || finalLengths.s2;
 
     const randInt = (n) => Math.floor(seededRandom() * n);
     const foodSettings = {
@@ -287,14 +462,16 @@ async function runMatch(gameSeed) {
         foodSpawnChance: CONFIG.foodSpawnChance,
     };
 
-    placeInitialStandardFood(
-        randInt,
-        CONFIG.width,
-        CONFIG.height,
-        state.board.snakes,
-        state.board.food,
-        foodSettings
-    );
+    if (!resumeSnapshot?.state) {
+        placeInitialStandardFood(
+            randInt,
+            CONFIG.width,
+            CONFIG.height,
+            state.board.snakes,
+            state.board.food,
+            foodSettings
+        );
+    }
 
     let gameOver = false;
     let winner = null;
@@ -314,6 +491,13 @@ async function runMatch(gameSeed) {
         let moveRequests = state.board.snakes.map(async (snake) => {
             const config = snake.id === "s1" ? PLAYER_1 : PLAYER_2;
             try {
+                if (snake.id === "s2" && scriptedOpponentMoves.length > 0) {
+                    const scriptedMove = normalizeMove(scriptedOpponentMoves.shift());
+                    if (scriptedMove) {
+                        return { id: snake.id, dir: scriptedMove };
+                    }
+                }
+
                 if (config.type === 'local') {
                     const opponent = state.board.snakes.find(s => s.id !== snake.id) || snake;
 
@@ -338,7 +522,7 @@ async function runMatch(gameSeed) {
                 } else {
                     const botType = config.type;
                     const payload = formatPayload(state, snake, botType);
-                    const resp = await axios.post(`${config.url}/move`, payload, { timeout: 600 });
+                    const resp = await axios.post(`${config.url}/move`, payload, { timeout: CONFIG.requestTimeout });
                     return { id: snake.id, dir: resp.data.move };
                 }
             } catch (e) {
@@ -349,11 +533,12 @@ async function runMatch(gameSeed) {
         const moves = await Promise.all(moveRequests);
 
         // 2. Snapshot History
-        if (DEBUG_MODE || FIND_MODE) {
+        if (DEBUG_MODE || HAS_FIND_MODE) {
             const opponentMove = moves.find(m => m.id === "s2")?.dir || "UP";
             history.push({
                 board: JSON.parse(JSON.stringify(state.board)),
                 seed: turnSeed,
+                turn: state.turn,
                 opponentMove: opponentMove.toUpperCase()
             });
             if (history.length > 50) history.shift();
@@ -457,7 +642,7 @@ async function runMatch(gameSeed) {
             foodSettings
         );
 
-        if (blueDied && DEBUG_MODE && !FIND_MODE) {
+        if (blueDied && DEBUG_MODE && !HAS_FIND_MODE) {
             if (!ONLY_LOSS || blueDied) {
                 generateDeathJSON(history, "Debug Mode Death");
                 process.exit(0);
@@ -474,7 +659,7 @@ async function runMatch(gameSeed) {
         }
     }
 
-    if (VISUAL_MODE && !DEBUG_MODE && !FIND_MODE) {
+    if (VISUAL_MODE && !DEBUG_MODE && !HAS_FIND_MODE) {
         console.log(`\nGAME OVER! Result: ${winner ? winner : 'Draw'}`);
     }
 
@@ -485,18 +670,55 @@ async function runMatch(gameSeed) {
 
 async function main() {
     console.log(`\n${CYAN}=== ARENA ===${RESET}`);
-    const baseSeed = SEED_ARG ? parseInt(SEED_ARG.split('=')[1]) : Math.floor(Math.random() * 2000000000);
+
+    let loadedSnapshot = null;
+    if (RESUME_MODE) {
+        try {
+            loadedSnapshot = loadSnapshotFromFile(SNAPSHOT_FILE_PATH);
+        } catch (error) {
+            console.log(`${RED}Failed to load snapshot:${RESET} ${error.message}`);
+            process.exit(1);
+        }
+    }
+
+    const baseSeed = Number.isFinite(parsedSeed)
+        ? parsedSeed
+        : (loadedSnapshot?.seed ?? Math.floor(Math.random() * 2000000000));
     
     console.log(`Modes: ${VISUAL_MODE ? 'VISUAL' : 'HEADLESS'} | Debug: ${DEBUG_MODE}`);
     console.log(`Games: ${TOTAL_GAMES} | Initial Seed: ${baseSeed}`);
+    console.log(`Timing: delay=${CONFIG.delay}ms | reqTimeout=${CONFIG.requestTimeout}ms | payloadTimeout=${CONFIG.payloadTimeout}ms | snapshotTicks=${SNAPSHOT_TICKS}`);
+    if (RESUME_MODE) {
+        console.log(`Resume: ON | file=${formatDisplayPath(SNAPSHOT_FILE_PATH)}`);
+    } else {
+        console.log(`Resume: OFF | snapshot file=${formatDisplayPath(SNAPSHOT_FILE_PATH)}`);
+    }
+    if (INVALID_FIND_MODES.length > 0) {
+        console.log(`${YELLOW}Ignoring unknown find mode(s):${RESET} ${INVALID_FIND_MODES.join(', ')}`);
+    }
+    if (HAS_FIND_MODE) {
+        console.log(`Find Modes: ${FIND_MODES.join(', ')}`);
+    }
     console.log(`-------------------------------\n`);
 
-    let targetGame = { 
-        turns: FIND_MODE === 'shortest' ? Infinity : -1, 
-        history: null, 
-        seed: null, 
-        winner: null 
+    const findModeConfigs = {
+        shortest: { metricKey: 'turns', maximize: false, title: "Shortest Turns" },
+        longest: { metricKey: 'turns', maximize: true, title: "Longest Turns" },
+        "shortest-snake": { metricKey: 'localLength', maximize: false, title: `Shortest Local Snake (${PLAYER_1.name})` },
+        "longest-snake": { metricKey: 'localLength', maximize: true, title: `Longest Local Snake (${PLAYER_1.name})` }
     };
+    let targetGamesByMode = {};
+    FIND_MODES.forEach(mode => {
+        const config = findModeConfigs[mode];
+        targetGamesByMode[mode] = {
+            metric: config.maximize ? -Infinity : Infinity,
+            turns: null,
+            localLength: null,
+            history: null,
+            seed: null,
+            winner: null
+        };
+    });
 
     // Stat Trackers for Tables
     let turnDistribution = {};
@@ -512,8 +734,7 @@ async function main() {
 
     for (let i = 0; i < TOTAL_GAMES; i++) {
         let matchSeed = (baseSeed + i) % 4294967296; 
-        
-        const result = await runMatch(matchSeed);
+        const result = await runMatch(matchSeed, RESUME_MODE ? loadedSnapshot : null);
         
         // Track standard Win/Loss
         if (result.winner === PLAYER_1.name) stats[PLAYER_1.name]++;
@@ -525,22 +746,31 @@ async function main() {
         lengthDistributionP1[getLengthBin(result.finalLengths.s1)]++;
         lengthDistributionP2[getLengthBin(result.finalLengths.s2)]++;
 
-        if (FIND_MODE) {
+        if (HAS_FIND_MODE) {
             const validCandidate = !ONLY_LOSS || result.blueDied;
             if (validCandidate) {
-                const isNewTarget = 
-                    (FIND_MODE === 'longest' && result.turns > targetGame.turns) ||
-                    (FIND_MODE === 'shortest' && result.turns < targetGame.turns);
+                FIND_MODES.forEach(mode => {
+                    const modeConfig = findModeConfigs[mode];
+                    const targetGame = targetGamesByMode[mode];
+                    const candidateMetric = modeConfig.metricKey === 'localLength'
+                        ? result.finalLengths.s1
+                        : result.turns;
+                    const isNewTarget = modeConfig.maximize
+                        ? candidateMetric > targetGame.metric
+                        : candidateMetric < targetGame.metric;
 
-                if (isNewTarget) {
-                    targetGame = {
-                        turns: result.turns,
-                        history: result.history,
-                        seed: matchSeed,
-                        winner: result.winner || "Draw"
-                    };
+                    if (isNewTarget) {
+                        targetGamesByMode[mode] = {
+                            metric: candidateMetric,
+                            turns: result.turns,
+                            localLength: result.finalLengths.s1,
+                            history: result.history,
+                            seed: matchSeed,
+                            winner: result.winner || "Draw"
+                        };
+                    }
+                });
                 }
-            }
         }
 
         if (!VISUAL_MODE) {
@@ -566,25 +796,57 @@ async function main() {
     console.table(formattedTurnTable);
 
     // --- GENERATE LENGTH DISTRIBUTION TABLE ---
-    const formattedLengthTable = {};
-    lengthBins.forEach(bin => {
-        const p1Count = lengthDistributionP1[bin];
-        const p2Count = lengthDistributionP2[bin];
-        formattedLengthTable[bin] = {
-            [`${PLAYER_1.name} Count`]: p1Count,
-            [`${PLAYER_1.name} %`]: ((p1Count / TOTAL_GAMES) * 100).toFixed(2) + "%",
-            [`${PLAYER_2.name} Count`]: p2Count,
-            [`${PLAYER_2.name} %`]: ((p2Count / TOTAL_GAMES) * 100).toFixed(2) + "%"
-        };
-    });
     console.log(`\n${CYAN}Final Snake Length Distribution:${RESET}`);
-    console.table(formattedLengthTable);
 
-    if (FIND_MODE && targetGame.history) {
-        const modeTitle = FIND_MODE.charAt(0).toUpperCase() + FIND_MODE.slice(1);
-        console.log(`\n${CYAN}Found ${modeTitle} Game:${RESET} ${targetGame.turns} turns (Winner: ${targetGame.winner})`);
-        console.log(`Reproduce this game: bun arena --visual --seed=${targetGame.seed}`);
-        generateDeathJSON(targetGame.history, `${modeTitle} Game Snapshot`);
+    const safeTotalGames = Math.max(1, TOTAL_GAMES);
+    const p1PercentByBin = {};
+    const p2PercentByBin = {};
+    lengthBins.forEach(bin => {
+        p1PercentByBin[bin] = ((lengthDistributionP1[bin] / safeTotalGames) * 100).toFixed(2) + "%";
+        p2PercentByBin[bin] = ((lengthDistributionP2[bin] / safeTotalGames) * 100).toFixed(2) + "%";
+    });
+
+    const colWidths = [
+        Math.max("Len".length, ...lengthBins.map(b => b.length)),
+        Math.max(PLAYER_1.name.length, "Count".length, ...lengthBins.map(b => String(lengthDistributionP1[b]).length)),
+        Math.max("%".length, ...lengthBins.map(b => p1PercentByBin[b].length)),
+        Math.max(PLAYER_2.name.length, "Count".length, ...lengthBins.map(b => String(lengthDistributionP2[b]).length)),
+        Math.max("%".length, ...lengthBins.map(b => p2PercentByBin[b].length))
+    ];
+
+    const pad = (value, width) => String(value).padEnd(width, " ");
+    const row = (values) => `| ${values.map((v, i) => pad(v, colWidths[i])).join(" | ")} |`;
+    const divider = `+-${colWidths.map(w => "-".repeat(w)).join("-+-")}-+`;
+
+    console.log(divider);
+    console.log(row(["Len", PLAYER_1.name, "", PLAYER_2.name, ""]));
+    console.log(row(["", "Count", "%", "Count", "%"]));
+    console.log(divider);
+    lengthBins.forEach(bin => {
+        console.log(row([
+            bin,
+            String(lengthDistributionP1[bin]),
+            p1PercentByBin[bin],
+            String(lengthDistributionP2[bin]),
+            p2PercentByBin[bin]
+        ]));
+    });
+    console.log(divider);
+
+    if (HAS_FIND_MODE) {
+        FIND_MODES.forEach(mode => {
+            const modeConfig = findModeConfigs[mode];
+            const targetGame = targetGamesByMode[mode];
+            if (!targetGame || !targetGame.history) return;
+
+            const metricLabel = modeConfig.metricKey === 'localLength'
+                ? `${targetGame.localLength} local length`
+                : `${targetGame.turns} turns`;
+            console.log(`\n${CYAN}Found ${modeConfig.title} Game:${RESET} ${metricLabel} (Winner: ${targetGame.winner})`);
+            console.log(`Reproduce this game: bun arena --visual --seed=${targetGame.seed}`);
+            console.log(`Continue from saved snapshot: bun arena --visual --resume`);
+            generateDeathJSON(targetGame.history, `${modeConfig.title} Game Snapshot`);
+        });
     }
 }
 

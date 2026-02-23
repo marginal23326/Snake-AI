@@ -8,7 +8,7 @@
 
     const Config = {
         DIRS: DIRS,
-        MAX_DEPTH: 4,
+        MAX_DEPTH: 6,
         DENSE_TAIL_RACE_OCCUPANCY: 0.5,
         GA: {
             SELF_PLAY_ENABLED: true,
@@ -23,12 +23,12 @@
             STAGED_QUICK_HTTP_GAMES: 2,
             STAGED_QUICK_SELF_GAMES: 2,
             STAGED_QUICK_MAX_TURNS_RATIO: 0.55,
-            STAGED_REFINE_TOP_FRACTION: 0.35,
+            STAGED_REFINE_TOP_FRACTION: 0.5,
             VALIDATION_GAMES: 10,
             PROGRESS_LEVEL: 0,
             PROGRESS_MATCH_EVERY: 1,
             VERIFY_CANDIDATES: true,
-            VERIFY_DEPTHS: [1, 2, 3, 4],
+            VERIFY_DEPTHS: [1, 2, 3, 4, 5, 6, 7, 8],
             VERIFY_MAX_ATTEMPTS: 200,
             HTTP_LEGACY_PORTS: [7000, 8000],
         },
