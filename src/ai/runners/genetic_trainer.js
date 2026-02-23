@@ -13,7 +13,7 @@
  *   --mutStr=F        Mutation strength             (default 0.15)
  *   --tourney=N       Tournament selection size     (default 3)
  *   --save=FILE       Output JSON file             (default src/ai/data/ga_results.json)
- *   --opponent=URL    Add an HTTP opponent         (repeatable)
+ *   --opponent=TARGET Add an HTTP opponent URL or roster name (repeatable)
  *   --onlyHttp=1      Use only HTTP opponents      (skip built-ins)
  *   --httpGames=N     Games per HTTP opponent      (default --games)
  *   --selfPlay=1      Include self-play champions  (default config)
@@ -34,6 +34,8 @@
  *   --verify=1        Verify candidates with regression suite (default config)
  *   --verifyDepths=L  Comma depth list for verification (default config)
  *   --verifyMaxAttempts=N Max retries replacing failed candidates (default config)
+ *   --list-opponents  Print shared opponent roster and exit
+ *   --httpApi=MODE    HTTP payload mode: auto|standard|world|legacy (default auto)
  *   --legacyHttp=1    Force legacy payload transform for HTTP opponents
  *   --resume=FILE     Load progress from a checkpoint file
  *   --checkpoint=FILE File to save periodic progress (default src/ai/data/ga_checkpoint.json)
@@ -50,6 +52,18 @@ const {
     placeInitialStandardFood,
     applyStandardFoodSpawning
 } = require('../standard_food');
+const {
+    normalizeApiType,
+    normalizeMoveName,
+    moveNameToVector,
+    buildMovePayload
+} = require('./http_api');
+const {
+    DEFAULT_OPPONENT_ROSTER,
+    findRosterOpponent,
+    isHttpUrl,
+    formatOpponentRoster
+} = require('./opponent_roster');
 
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
 const DEFAULT_SAVE_FILE = path.join(DATA_DIR, 'ga_results.json');
@@ -373,14 +387,14 @@ function aggressiveBot(me, enemy, food, W, H) {
 
 //  HTTP OPPONENT (optional, for external snake servers)
 
-function _httpPost(url, body) {
+function _httpPost(url, body, timeoutMs = 2000) {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
         const data = JSON.stringify(body);
         const req = http.request({
             hostname: u.hostname,
             port:     u.port || 80,
-            path:     u.pathname,
+            path:     `${u.pathname}${u.search || ''}`,
             method:   'POST',
             headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
         }, res => {
@@ -389,14 +403,10 @@ function _httpPost(url, body) {
             res.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { reject(e); } });
         });
         req.on('error', reject);
-        req.setTimeout(2000, () => { req.destroy(); reject(new Error('timeout')); });
+        req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
         req.write(data);
         req.end();
     });
-}
-
-function invertY(y, height) {
-    return height - 1 - y;
 }
 
 function looksLegacyHttpUrl(url, legacyPorts) {
@@ -411,68 +421,67 @@ function looksLegacyHttpUrl(url, legacyPorts) {
 
 /**
  * Creates an async move-function that queries an HTTP snake server.
- * Supports legacy-coordinate transforms for older bots.
+ * Supports world/legacy/standard payloads with optional auto-detection.
  */
 function httpBot(baseUrl, options = {}) {
-    const isLegacy = !!options.legacy;
-    return async function(me, enemy, food, W, H, turn = 0) {
-        const dirMap = { up:{x:0,y:1}, down:{x:0,y:-1}, left:{x:-1,y:0}, right:{x:1,y:0} };
-        const transformY = (y) => isLegacy ? invertY(y, H) : y;
+    const configuredApiType = options.apiType === 'auto'
+        ? 'auto'
+        : normalizeApiType(options.apiType);
+    const timeoutMs = Math.max(200, Number(options.requestTimeoutMs) || 2000);
+    const legacyHint = !!options.legacyHint;
+    const moveUrl = `${String(baseUrl).replace(/\/+$/, '')}/move`;
+    const autoOrder = legacyHint
+        ? ['legacy', 'world', 'standard']
+        : ['standard', 'world', 'legacy'];
+    let detectedApiType = null;
 
-        const fullLegacyPayload = {
-            object: "world",
-            id: "training-game",
-            width: W,
-            height: H,
+    return async function(me, enemy, food, W, H, turn = 0) {
+        const meSnake = {
+            id: "http-bot",
+            name: "Opponent",
+            health: me.health,
+            body: me.body.map(p => ({ x: p.x, y: p.y }))
+        };
+        const enemySnake = {
+            id: "trainer",
+            name: "JS-Bot",
+            health: enemy.health,
+            body: enemy.body.map(p => ({ x: p.x, y: p.y }))
+        };
+        const state = {
             turn: Number.isFinite(turn) ? turn : 0,
-            food: {
-                object: "list",
-                data: food.map(f => ({ object: "point", x: f.x, y: transformY(f.y) }))
-            },
-            snakes: {
-                object: "list",
-                data: [
-                    {
-                        object: "snake",
-                        id: "http-bot",
-                        name: "Opponent",
-                        health: me.health,
-                        body: {
-                            object: "list",
-                            data: me.body.map(p => ({ object: "point", x: p.x, y: transformY(p.y) }))
-                        }
-                    },
-                    {
-                        object: "snake",
-                        id: "trainer",
-                        name: "JS-Bot",
-                        health: enemy.health,
-                        body: {
-                            object: "list",
-                            data: enemy.body.map(p => ({ object: "point", x: p.x, y: transformY(p.y) }))
-                        }
-                    }
-                ]
-            },
-            you: {
-                object: "snake",
-                id: "http-bot",
-                name: "Opponent",
-                health: me.health,
-                body: {
-                    object: "list",
-                    data: me.body.map(p => ({ object: "point", x: p.x, y: transformY(p.y) }))
-                }
+            board: {
+                width: W,
+                height: H,
+                food: food.map(f => ({ x: f.x, y: f.y })),
+                snakes: [meSnake, enemySnake]
             }
         };
+        const attemptApiTypes = detectedApiType
+            ? [detectedApiType]
+            : (configuredApiType === 'auto' ? autoOrder : [configuredApiType]);
 
-        try {
-            const resp = await _httpPost(baseUrl + '/move', fullLegacyPayload);
-            return dirMap[(resp.move || '').toLowerCase()] || {x:0, y:1};
-        } catch (_) {
-            // If the bot crashes or timeouts, default to UP
-            return {x:0, y:1};
+        for (const apiType of attemptApiTypes) {
+            const payload = buildMovePayload(state, meSnake, {
+                apiType,
+                gameId: "training-game",
+                source: "genetic_trainer.js",
+                timeout: 50
+            });
+            try {
+                const resp = await _httpPost(moveUrl, payload, timeoutMs);
+                const moveName = normalizeMoveName(resp?.move);
+                if (!moveName) continue;
+                if (configuredApiType === 'auto' && !detectedApiType) {
+                    detectedApiType = apiType;
+                }
+                return moveNameToVector(moveName);
+            } catch (_) {
+                // Try the next API mode when auto-detecting.
+            }
         }
+
+        return moveNameToVector("up");
     };
 }
 
@@ -496,6 +505,40 @@ function withDefault(value, fallback) {
 
 function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function parseHttpApiMode(value, fallback = 'auto') {
+    const mode = String(value ?? fallback).trim().toLowerCase();
+    return ['auto', 'standard', 'world', 'legacy'].includes(mode) ? mode : fallback;
+}
+
+function resolveOpponentTarget(target, { httpApiMode, legacyPorts }) {
+    const raw = String(target || '').trim();
+    if (!raw) return null;
+
+    const rosterMatch = findRosterOpponent(raw);
+    if (rosterMatch) {
+        const inferredApiType = normalizeApiType(rosterMatch.type);
+        const apiType = httpApiMode === 'auto' ? inferredApiType : httpApiMode;
+        return {
+            name: rosterMatch.name,
+            url: rosterMatch.url,
+            apiType,
+            legacyHint: inferredApiType === 'legacy'
+        };
+    }
+
+    if (!isHttpUrl(raw)) {
+        const knownNames = DEFAULT_OPPONENT_ROSTER.map(bot => bot.name).join(', ');
+        throw new Error(`Unknown opponent "${raw}". Use a URL or one of: ${knownNames}`);
+    }
+
+    return {
+        name: raw,
+        url: raw,
+        apiType: httpApiMode,
+        legacyHint: looksLegacyHttpUrl(raw, legacyPorts)
+    };
 }
 
 function parseDepthList(value, fallback) {
@@ -852,6 +895,12 @@ function configBlock(c) {
 //  MAIN TRAINING LOOP
 
 async function train(opts) {
+    const LIST_OPPONENTS = !!withDefault(opts.listOpponents, 0);
+    if (LIST_OPPONENTS) {
+        console.log(formatOpponentRoster());
+        return;
+    }
+
     fs.mkdirSync(DATA_DIR, { recursive: true });
 
     const GA = Config.GA || {};
@@ -870,12 +919,15 @@ async function train(opts) {
     const RESUME_FILE = opts.resume;
     const CHECKPOINT_FILE = opts.checkpoint || DEFAULT_CHECKPOINT_FILE;
 
-    const H_URLS = opts.opponents || [];
+    const H_TARGETS = opts.opponents || [];
     const ONLY_HTTP = !!withDefault(opts.onlyHttp, 0);
     const FORCE_LEGACY_HTTP = !!withDefault(opts.legacyHttp, 0);
     const LEGACY_HTTP_PORTS = Array.isArray(GA.HTTP_LEGACY_PORTS)
         ? GA.HTTP_LEGACY_PORTS.map(n => Number(n)).filter(Number.isFinite)
         : [7000, 8000];
+    const HTTP_API_MODE = FORCE_LEGACY_HTTP
+        ? 'legacy'
+        : parseHttpApiMode(withDefault(opts.httpApi, withDefault(GA.HTTP_API, 'auto')));
 
     const rawHttpGames = Math.floor(withDefault(opts.httpGames, withDefault(GA.HTTP_GAMES, 0)));
     const HTTP_GPO = rawHttpGames > 0 ? rawHttpGames : GPO;
@@ -937,17 +989,24 @@ async function train(opts) {
             { name: 'Aggressive', kind: 'builtin', move: aggressiveBot, games: GPO }
         );
     }
-    for (const url of H_URLS) {
-        const legacy = FORCE_LEGACY_HTTP || looksLegacyHttpUrl(url, LEGACY_HTTP_PORTS);
+    for (const target of H_TARGETS) {
+        const resolved = resolveOpponentTarget(target, {
+            httpApiMode: HTTP_API_MODE,
+            legacyPorts: LEGACY_HTTP_PORTS
+        });
+        if (!resolved) continue;
+        const apiLabel = resolved.apiType === 'auto'
+            ? (resolved.legacyHint ? ' (auto)' : '')
+            : ` (${resolved.apiType})`;
         baseOpponents.push({
-            name: legacy ? `${url} (legacy)` : url,
+            name: `${resolved.name}${apiLabel}`,
             kind: 'http',
-            move: httpBot(url, { legacy }),
+            move: httpBot(resolved.url, { apiType: resolved.apiType, legacyHint: resolved.legacyHint }),
             games: HTTP_GPO
         });
     }
     if (!baseOpponents.length) {
-        throw new Error('No opponents configured. Use --opponent=URL or disable --onlyHttp.');
+        throw new Error('No opponents configured. Use --opponent=<url|name> or disable --onlyHttp.');
     }
 
     const oppNames = baseOpponents.map(o => `${o.name} x${o.games}`);
@@ -960,6 +1019,7 @@ async function train(opts) {
     console.log(`  Base games  : nonHTTP=${GPO}  HTTP=${HTTP_GPO}  self=${SELF_GAMES}`);
     console.log(`  Board       : ${BW}×${BH}      Max turns : ${MT}      Depth: ${DEPTH}`);
     console.log(`  Mutation    : rate=${MR}  str=${MS}     Tournament: ${TK}`);
+    console.log(`  HTTP API    : mode=${HTTP_API_MODE}  legacyPorts=${LEGACY_HTTP_PORTS.join(',')}`);
     console.log(`  Opponents   : ${oppNames.join(', ')}`);
     console.log(`  Self-play   : ${selfSettings.enabled ? `on (recent=${selfSettings.recentCount}, hof=${selfSettings.hofCount}, every=${selfSettings.snapshotEvery})` : 'off'}`);
     console.log(`  Staged eval : ${STAGED ? `on (quick=${QUICK_GAMES}/${QUICK_HTTP_GAMES}/${QUICK_SELF_GAMES}, ratio=${QUICK_TURN_RATIO}, top=${REFINE_TOP_FRAC})` : 'off'}`);
@@ -1389,6 +1449,7 @@ async function train(opts) {
                 settings: {
                     POP, GENS, ELITE, GPO, HTTP_GPO, SELF_GAMES,
                     MR, MS, TK, BW, BH, MT, DEPTH,
+                    httpApiMode: HTTP_API_MODE,
                     legacyHttp: FORCE_LEGACY_HTTP,
                     legacyHttpPorts: LEGACY_HTTP_PORTS,
                     stagedEval: {
@@ -1429,16 +1490,42 @@ async function train(opts) {
 
 const cliOpts = {};
 const httpOpponents = [];
+const cliArgs = process.argv.slice(2);
 
-process.argv.slice(2).forEach(arg => {
-    const m = arg.match(/^--?(\w+)=(.+)$/);
-    if (!m) return;
-    if (m[1] === 'opponent') {
-        httpOpponents.push(m[2]);
-    } else {
-        cliOpts[m[1]] = isNaN(+m[2]) ? m[2] : +m[2];
+for (let i = 0; i < cliArgs.length; i++) {
+    const arg = cliArgs[i];
+
+    if (arg === '--list-opponents' || arg === '--listOpponents' || arg === '-L') {
+        cliOpts.listOpponents = 1;
+        continue;
     }
-});
+
+    const listOppEq = arg.match(/^--list-opponents=(.+)$/);
+    if (listOppEq) {
+        const rawValue = String(listOppEq[1]).trim().toLowerCase();
+        cliOpts.listOpponents = ['0', 'false', 'no', 'off'].includes(rawValue) ? 0 : 1;
+        continue;
+    }
+
+    if (arg === '--opponent' || arg === '-o') {
+        const next = cliArgs[i + 1];
+        if (next && !next.startsWith('-')) {
+            httpOpponents.push(next);
+            i++;
+        }
+        continue;
+    }
+
+    const opponentEq = arg.match(/^--?opponent=(.+)$/);
+    if (opponentEq) {
+        httpOpponents.push(opponentEq[1]);
+        continue;
+    }
+
+    const m = arg.match(/^--?(\w+)=(.+)$/);
+    if (!m) continue;
+    cliOpts[m[1]] = isNaN(+m[2]) ? m[2] : +m[2];
+}
 cliOpts.opponents = httpOpponents;
 
 train(cliOpts).catch(err => {

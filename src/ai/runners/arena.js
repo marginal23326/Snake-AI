@@ -7,6 +7,8 @@ const {
     placeInitialStandardFood,
     applyStandardFoodSpawning
 } = require('../standard_food');
+const { buildMovePayload } = require('./http_api');
+const { DEFAULT_OPPONENT_ROSTER, findRosterOpponent, formatOpponentRoster } = require('./opponent_roster');
 
 // --- CONFIGURATION & ARGS ---
 const args = process.argv.slice(2);
@@ -55,6 +57,7 @@ const RESUME_MODE = hasFlag(['--resume', '--load-snapshot', '-r']);
 const VISUAL_MODE = hasFlag(['--visual', '-v']);
 const DEBUG_MODE = hasFlag(['--debug', '-d']);
 const ONLY_LOSS = hasFlag(['--only-loss', '--loss-only', '-l']);
+const LIST_OPPONENTS = hasFlag(['--list-opponents', '--listOpponents', '-L']);
 
 const FIND_VALUES = getArgValues(['--find', '-f']);
 const FIND_MODE_ALIASES = {
@@ -128,11 +131,16 @@ const YELLOW = "\x1b[33m";
 const GREEN = "\x1b[32m";
 const CYAN = "\x1b[36m";
 
-const BOT_ROSTER = [
-    { name: "JS-Bot",         url: "http://localhost:9000", color: BLUE, type: "modern" },
-    { name: "shapeshifter",   url: "http://localhost:8080", color: GREEN, type: "standard" },
-    { name: "snek-two",       url: "http://localhost:7000", color: RED,   type: "legacy" }
-];
+const BOT_COLOR_BY_NAME = {
+    "JS-Bot": BLUE,
+    "shapeshifter": GREEN,
+    "snek-two": RED
+};
+
+const BOT_ROSTER = DEFAULT_OPPONENT_ROSTER.map(bot => ({
+    ...bot,
+    color: BOT_COLOR_BY_NAME[bot.name] || CYAN
+}));
 
 let PLAYER_1 = { ...BOT_ROSTER[0], name: "old-local", type: "local", url: null };
 
@@ -142,7 +150,8 @@ if (SELF_PLAY) {
     PLAYER_2 = { ...PLAYER_1, name: `${PLAYER_1.name}-red`, url: null, type: "local" };
 } else {
     const OPPONENT_NAME = OPPONENT_VALUE || "JS-Bot";
-    PLAYER_2 = BOT_ROSTER.find(b => b.name === OPPONENT_NAME) || BOT_ROSTER[0];
+    const resolvedOpponent = findRosterOpponent(OPPONENT_NAME, BOT_ROSTER);
+    PLAYER_2 = resolvedOpponent || BOT_ROSTER[0];
 }
 
 let stats = { [PLAYER_1.name]: 0, [PLAYER_2.name]: 0, draws: 0 };
@@ -164,8 +173,6 @@ function seededRandom() {
 // --- HELPERS ---
 
 const sleep = (ms) => new Promise(res => setTimeout(res, ms));
-
-function invertY(y, height) { return height - 1 - y; }
 function formatDisplayPath(fullPath) {
     const relative = path.relative(process.cwd(), fullPath);
     if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
@@ -232,71 +239,6 @@ function loadSnapshotFromFile(filePath) {
                     { id: "s1", body: localBody, health: localHealth },
                     { id: "s2", body: opponentBody, health: opponentHealth }
                 ]
-            }
-        }
-    };
-}
-
-function formatPayload(state, you, botType) {
-    const formatPoint = (p) => ({ x: p.x, y: p.y });
-
-    if (botType === "standard") {
-        return {
-            game: { 
-                id: "game-id", 
-                ruleset: { name: "standard", version: "v1.2.3" }, 
-                map: "standard",
-                source: "arena.js",
-                timeout: CONFIG.payloadTimeout 
-            },
-            turn: state.turn,
-            board: {
-                height: state.board.height,
-                width: state.board.width,
-                food: state.board.food.map(formatPoint),
-                hazards: [],
-                snakes: state.board.snakes.map(s => ({
-                    id: s.id, name: s.id, health: s.health,
-                    body: s.body.map(formatPoint),
-                    head: formatPoint(s.body[0]),
-                    length: s.body.length, latency: "100", shout: ""
-                }))
-            },
-            you: {
-                id: you.id, name: you.id, health: you.health,
-                body: you.body.map(formatPoint),
-                head: formatPoint(you.body[0]),
-                length: you.body.length, latency: "100", shout: ""
-            }
-        };
-    }
-
-    const isLegacy = (botType === "legacy");
-    const transform = (y) => isLegacy ? invertY(y, state.board.height) : y;
-
-    return {
-        object: "world", id: "game-id",
-        width: state.board.width, height: state.board.height,
-        turn: state.turn,
-        food: {
-            object: "list",
-            data: state.board.food.map(f => ({ object: "point", x: f.x, y: transform(f.y) }))
-        },
-        snakes: {
-            object: "list",
-            data: state.board.snakes.map(s => ({
-                object: "snake", id: s.id, name: s.id, health: s.health,
-                body: {
-                    object: "list",
-                    data: s.body.map(p => ({ object: "point", x: p.x, y: transform(p.y) }))
-                }
-            }))
-        },
-        you: {
-            object: "snake", id: you.id, name: you.id, health: you.health,
-            body: {
-                object: "list",
-                data: you.body.map(p => ({ object: "point", x: p.x, y: transform(p.y) }))
             }
         }
     };
@@ -520,8 +462,12 @@ async function runMatch(gameSeed, resumeSnapshot = null) {
 
                     return { id: snake.id, dir };
                 } else {
-                    const botType = config.type;
-                    const payload = formatPayload(state, snake, botType);
+                    const payload = buildMovePayload(state, snake, {
+                        apiType: config.type,
+                        gameId: "game-id",
+                        source: "arena.js",
+                        timeout: CONFIG.payloadTimeout
+                    });
                     const resp = await axios.post(`${config.url}/move`, payload, { timeout: CONFIG.requestTimeout });
                     return { id: snake.id, dir: resp.data.move };
                 }
@@ -670,6 +616,10 @@ async function runMatch(gameSeed, resumeSnapshot = null) {
 
 async function main() {
     console.log(`\n${CYAN}=== ARENA ===${RESET}`);
+    if (LIST_OPPONENTS) {
+        console.log(formatOpponentRoster(BOT_ROSTER));
+        return;
+    }
 
     let loadedSnapshot = null;
     if (RESUME_MODE) {

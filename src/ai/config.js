@@ -28,9 +28,9 @@
             PROGRESS_LEVEL: 0,
             PROGRESS_MATCH_EVERY: 1,
             VERIFY_CANDIDATES: true,
-            VERIFY_DEPTHS: [1, 2, 3, 4, 5, 6, 7, 8],
-            VERIFY_MAX_ATTEMPTS: 200,
-            HTTP_LEGACY_PORTS: [7000, 8000],
+            VERIFY_DEPTHS: [4, 5, 6],
+            VERIFY_MAX_ATTEMPTS: 800,
+            HTTP_LEGACY_PORTS: [7000],
         },
         SCORES: {
             WIN:  1000000000,
