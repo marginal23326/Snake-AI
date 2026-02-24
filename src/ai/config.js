@@ -37,26 +37,26 @@
             LOSS: -1000000000,
             DRAW: -100000000,
 
-            TRAP_DANGER:       -169851244,
-            STRATEGIC_SQUEEZE: -49293830,
-            ENEMY_TRAPPED:     123914592,
+            TRAP_DANGER:       -413704270,
+            STRATEGIC_SQUEEZE: -18960904,
+            ENEMY_TRAPPED:     320798923,
 
-            HEAD_ON_COLLISION: -169301651,
-            TIGHT_SPOT:        -76786.239,
+            HEAD_ON_COLLISION: -140956186,
+            TIGHT_SPOT:        -76752.599,
 
-            LENGTH:            3299.936,
-            EAT_REWARD:        4761.59,
+            LENGTH:            1000,
+            EAT_REWARD:        2000,
 
-            TERRITORY_CONTROL: 3771.179,
-            KILL_PRESSURE:     226090.149,
+            TERRITORY_CONTROL: 3265.2,
+            KILL_PRESSURE:     66318.811,
 
             FOOD: {
-                INTENSITY: 1603.242,
-                THRESHOLD: 12.906,
-                EXPONENT:  1.721,
+                INTENSITY: 3303.092,
+                THRESHOLD: 19.357,
+                EXPONENT:  1.968,
             },
 
-            AGGRESSION: 8332.109,
+            AGGRESSION: 7595.795,
         },
 
         /** Deep-merge new values into this Config object in-place. */

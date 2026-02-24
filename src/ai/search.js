@@ -129,6 +129,59 @@
         return enemyMoves <= 2;
     }
 
+    function shortestDistanceToTail(grid, start, body) {
+        if (!body || body.length < 2) return Infinity;
+
+        const tail = body[body.length - 1];
+        const prev = body[body.length - 2];
+        const tailStacked = (tail.x === prev.x && tail.y === prev.y);
+        if (tailStacked) return Infinity;
+        if (start.x === tail.x && start.y === tail.y) return 0;
+
+        const width = grid.width;
+        const height = grid.height;
+        const size = width * height;
+        const seen = new Uint8Array(size);
+        const qx = new Int16Array(size);
+        const qy = new Int16Array(size);
+        const qd = new Int16Array(size);
+
+        let head = 0;
+        let tailIdx = 0;
+        qx[tailIdx] = start.x;
+        qy[tailIdx] = start.y;
+        qd[tailIdx] = 0;
+        tailIdx++;
+        seen[start.y * width + start.x] = 1;
+
+        while (head < tailIdx) {
+            const x = qx[head];
+            const y = qy[head];
+            const d = qd[head];
+            head++;
+
+            for (let i = 0; i < 4; i++) {
+                const nx = x + DIRS_ARRAY[i].dx;
+                const ny = y + DIRS_ARRAY[i].dy;
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+
+                if (nx === tail.x && ny === tail.y) return d + 1;
+
+                const idx = ny * width + nx;
+                if (seen[idx]) continue;
+                if (!grid.isSafe(nx, ny)) continue;
+                seen[idx] = 1;
+
+                qx[tailIdx] = nx;
+                qy[tailIdx] = ny;
+                qd[tailIdx] = d + 1;
+                tailIdx++;
+            }
+        }
+
+        return Infinity;
+    }
+
     /**
      * Negamax with Alpha-Beta pruning, TT, and History Heuristic.
      */
@@ -308,10 +361,16 @@
                 }
 
                 if (denseTailRace) {
+                    const hasTailExit = Number.isFinite(shortestDistanceToTail(grid, newHead, state.enemy.body));
+
                     const enemyHead = state.enemy.body[0];
                     const enemyHeadDist = Math.abs(move.x - enemyHead.x) + Math.abs(move.y - enemyHead.y);
                     if (continuationMoves === 1 && enemyHeadDist <= 5) {
+                        // One-way corridors are only survivable if they reconnect via a tail race.
                         structuralAdjustment -= Math.abs(Config.SCORES.TERRITORY_CONTROL) * 120;
+                        if (!hasTailExit) {
+                            structuralAdjustment -= Math.abs(Config.SCORES.TERRITORY_CONTROL) * 140;
+                        }
                     }
 
                     const enemyTail = state.enemy.body[state.enemy.body.length - 1];

@@ -83,9 +83,9 @@ const GENES = [
     { name: 'EAT_REWARD',           path: ['SCORES','EAT_REWARD'],             min: 100,        max: 10000,      isInt: false },
     { name: 'TERRITORY_CONTROL',    path: ['SCORES','TERRITORY_CONTROL'],      min: 10,         max: 5000,       isInt: false },
     { name: 'KILL_PRESSURE',        path: ['SCORES','KILL_PRESSURE'],          min: 50000,      max: 500000,     isInt: false },
-    { name: 'FOOD_INTENSITY',       path: ['SCORES','FOOD','INTENSITY'],       min: 100,        max: 4000,       isInt: false },
-    { name: 'FOOD_THRESHOLD',       path: ['SCORES','FOOD','THRESHOLD'],       min: 3,          max: 20,         isInt: false },
-    { name: 'FOOD_EXPONENT',        path: ['SCORES','FOOD','EXPONENT'],        min: 1,          max: 3,          isInt: false },
+    { name: 'FOOD_INTENSITY',       path: ['SCORES','FOOD','INTENSITY'],       min: 1000,        max: 6000,       isInt: false },
+    { name: 'FOOD_THRESHOLD',       path: ['SCORES','FOOD','THRESHOLD'],       min: 5,          max: 40,         isInt: false },
+    { name: 'FOOD_EXPONENT',        path: ['SCORES','FOOD','EXPONENT'],        min: 1,          max: 5,          isInt: false },
     { name: 'AGGRESSION',           path: ['SCORES','AGGRESSION'],             min: 100,        max: 10000,      isInt: false },
 ];
 

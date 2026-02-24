@@ -1,268 +1,436 @@
 {
   "bestChromosome": {
-    "TRAP_DANGER": -167851244,
-    "STRATEGIC_SQUEEZE": -49293830,
-    "ENEMY_TRAPPED": 123914592,
-    "HEAD_ON_COLLISION": -169301651,
-    "TIGHT_SPOT": -76786.24,
-    "LENGTH": 3299.94,
-    "EAT_REWARD": 4761.59,
-    "TERRITORY_CONTROL": 3771.18,
-    "KILL_PRESSURE": 226090.15,
-    "FOOD_INTENSITY": 1603.24,
-    "FOOD_THRESHOLD": 12.91,
-    "FOOD_EXPONENT": 1.72,
-    "AGGRESSION": 8332.11
+    "TRAP_DANGER": -413704270,
+    "STRATEGIC_SQUEEZE": -18960904,
+    "ENEMY_TRAPPED": 320798923,
+    "HEAD_ON_COLLISION": -140956186,
+    "TIGHT_SPOT": -76752.6,
+    "LENGTH": 910.3,
+    "EAT_REWARD": 1879.71,
+    "TERRITORY_CONTROL": 3265.2,
+    "KILL_PRESSURE": 66318.81,
+    "FOOD_INTENSITY": 3303.09,
+    "FOOD_THRESHOLD": 19.36,
+    "FOOD_EXPONENT": 1.97,
+    "AGGRESSION": 7595.79
   },
-  "bestFitness": 317.47352941176473,
+  "bestFitness": 275.08257575757574,
   "bestStats": {
-    "score": 317.47352941176473,
-    "wins": 12,
+    "score": 275.08257575757574,
+    "wins": 21,
     "draws": 0,
-    "losses": 0,
-    "avgT": 380.25,
-    "avgL": 26
+    "losses": 3,
+    "avgT": 329.9166666666667,
+    "avgL": 19.166666666666668,
+    "breakdown": {
+      "byKind": {
+        "http": {
+          "games": 20,
+          "wins": 17,
+          "draws": 0,
+          "losses": 3
+        },
+        "self": {
+          "games": 4,
+          "wins": 4,
+          "draws": 0,
+          "losses": 0
+        }
+      },
+      "byOpponent": {
+        "http:snek-two (legacy)": {
+          "games": 10,
+          "wins": 8,
+          "draws": 0,
+          "losses": 2
+        },
+        "http:shapeshifter (standard)": {
+          "games": 10,
+          "wins": 9,
+          "draws": 0,
+          "losses": 1
+        },
+        "self:Self-Gen5": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen10": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen15": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen19": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        }
+      }
+    }
   },
   "validation": {
-    "score": 184.97436974789915,
-    "wins": 8,
+    "score": 295.3598484848485,
+    "wins": 23,
     "draws": 0,
-    "losses": 6,
-    "avgT": 316.57142857142856,
-    "avgL": 19.642857142857142
+    "losses": 1,
+    "avgT": 232.08333333333334,
+    "avgL": 11.5,
+    "breakdown": {
+      "byKind": {
+        "http": {
+          "games": 20,
+          "wins": 20,
+          "draws": 0,
+          "losses": 0
+        },
+        "self": {
+          "games": 4,
+          "wins": 3,
+          "draws": 0,
+          "losses": 1
+        }
+      },
+      "byOpponent": {
+        "http:snek-two (legacy)": {
+          "games": 10,
+          "wins": 10,
+          "draws": 0,
+          "losses": 0
+        },
+        "http:shapeshifter (standard)": {
+          "games": 10,
+          "wins": 10,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen5": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen10": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen20": {
+          "games": 1,
+          "wins": 1,
+          "draws": 0,
+          "losses": 0
+        },
+        "self:Self-Gen21": {
+          "games": 1,
+          "wins": 0,
+          "draws": 0,
+          "losses": 1
+        }
+      }
+    }
   },
   "history": [
     {
       "gen": 1,
-      "best": 277.1404411764706,
-      "avg": 108.90640731935173,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 2,
-      "fullMatchups": 8,
+      "best": 208.48227272727274,
+      "avg": 170.2457727272727,
+      "bestEver": 208.48227272727274,
+      "staged": false,
+      "quickMatchups": 4,
+      "fullMatchups": 20,
       "selfPoolSize": 0
     },
     {
       "gen": 2,
-      "best": 266.4838235294118,
-      "avg": 169.62464201865612,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 225.10037878787878,
+      "avg": 172.40943181818182,
+      "bestEver": 225.10037878787878,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 1
     },
     {
       "gen": 3,
-      "best": 245.51274509803923,
-      "avg": 150.46852900064383,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 238.89204545454547,
+      "avg": 173.19865530303028,
+      "bestEver": 238.89204545454547,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 2
     },
     {
       "gen": 4,
-      "best": 264.1612745098039,
-      "avg": 176.08561942799963,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 226.30416666666665,
+      "avg": 184.87857954545456,
+      "bestEver": 238.89204545454547,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 3
     },
     {
       "gen": 5,
-      "best": 265.85343137254904,
-      "avg": 157.04188845327567,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 237.14204545454547,
+      "avg": 187.76337121212123,
+      "bestEver": 238.89204545454547,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 4
     },
     {
       "gen": 6,
-      "best": 241.0328431372549,
-      "avg": 167.02413126653235,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 260.8284090909091,
+      "avg": 195.40994318181816,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 5
     },
     {
       "gen": 7,
-      "best": 264.1470588235294,
-      "avg": 169.99926138192606,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 250.8723484848485,
+      "avg": 188.45410984848485,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 5
     },
     {
       "gen": 8,
-      "best": 240.7441176470588,
-      "avg": 185.21341798050412,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 214.39583333333334,
+      "avg": 164.71371212121215,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 5
     },
     {
       "gen": 9,
-      "best": 194.2485294117647,
-      "avg": 152.9946991207261,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 247.95075757575756,
+      "avg": 184.62051136363635,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 5
     },
     {
       "gen": 10,
-      "best": 243.24460784313726,
-      "avg": 156.40327847056022,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 249.49507575757573,
+      "avg": 192.73314393939393,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 5
     },
     {
       "gen": 11,
-      "best": 218.27205882352942,
-      "avg": 214.2870569516172,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 226.26401515151517,
+      "avg": 171.836553030303,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 6
     },
     {
       "gen": 12,
-      "best": 262.3627450980392,
-      "avg": 154.11874112153785,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 201.0746212121212,
+      "avg": 166.9757196969697,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 6
     },
     {
       "gen": 13,
-      "best": 238.73676470588236,
-      "avg": 159.9821197394018,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 237.23901515151516,
+      "avg": 201.87729166666665,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 6
     },
     {
       "gen": 14,
-      "best": 264.5240196078431,
-      "avg": 184.4155089239479,
-      "bestEver": 277.1404411764706,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 214.10681818181817,
+      "avg": 179.61382575757577,
+      "bestEver": 260.8284090909091,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 6
     },
     {
       "gen": 15,
-      "best": 317.47352941176473,
-      "avg": 164.2274473065458,
-      "bestEver": 317.47352941176473,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 265.0746212121212,
+      "avg": 196.02875000000003,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 6
     },
     {
       "gen": 16,
-      "best": 241.62107843137255,
-      "avg": 169.94744466487523,
-      "bestEver": 317.47352941176473,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 237.7962121212121,
+      "avg": 188.24285984848487,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 7
     },
     {
       "gen": 17,
-      "best": 266.2656862745098,
-      "avg": 134.5109240073617,
-      "bestEver": 317.47352941176473,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 238.3647727272727,
+      "avg": 209.9214962121212,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 7
     },
     {
       "gen": 18,
-      "best": 242.86323529411766,
-      "avg": 188.33145940924553,
-      "bestEver": 317.47352941176473,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 252.83446969696968,
+      "avg": 206.35600378787882,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 7
     },
     {
       "gen": 19,
-      "best": 217.58970588235294,
-      "avg": 147.72411840806993,
-      "bestEver": 317.47352941176473,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 249.76325757575756,
+      "avg": 202.6069886363636,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 7
     },
     {
       "gen": 20,
-      "best": 262.37254901960785,
-      "avg": 112.20422103084631,
-      "bestEver": 317.47352941176473,
-      "staged": true,
-      "quickMatchups": 4,
-      "fullMatchups": 12,
+      "best": 238.3590909090909,
+      "avg": 160.32856060606062,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
       "selfPoolSize": 7
+    },
+    {
+      "gen": 21,
+      "best": 245.69242424242427,
+      "avg": 177.89579545454544,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
+      "selfPoolSize": 8
+    },
+    {
+      "gen": 22,
+      "best": 250.0905303030303,
+      "avg": 201.47051136363638,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
+      "selfPoolSize": 8
+    },
+    {
+      "gen": 23,
+      "best": 263.3556818181818,
+      "avg": 205.8453787878788,
+      "bestEver": 265.0746212121212,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
+      "selfPoolSize": 8
+    },
+    {
+      "gen": 24,
+      "best": 275.08257575757574,
+      "avg": 210.47748106060604,
+      "bestEver": 275.08257575757574,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
+      "selfPoolSize": 8
+    },
+    {
+      "gen": 25,
+      "best": 273.1719696969697,
+      "avg": 216.5783712121212,
+      "bestEver": 275.08257575757574,
+      "staged": false,
+      "quickMatchups": 6,
+      "fullMatchups": 24,
+      "selfPoolSize": 8
     }
   ],
   "settings": {
-    "POP": 24,
-    "GENS": 20,
+    "POP": 20,
+    "GENS": 25,
     "ELITE": 2,
     "GPO": 5,
-    "HTTP_GPO": 8,
+    "HTTP_GPO": 10,
     "SELF_GAMES": 4,
-    "MR": 0.25,
-    "MS": 0.12,
+    "MR": 0.2,
+    "MS": 0.05,
     "TK": 3,
     "BW": 16,
     "BH": 9,
-    "MT": 850,
+    "MT": 1100,
     "DEPTH": 6,
+    "httpApiMode": "auto",
     "legacyHttp": false,
     "legacyHttpPorts": [
-      7000,
-      8000
+      7000
     ],
     "stagedEval": {
-      "enabled": true,
+      "enabled": false,
       "quickGames": 4,
       "quickHttpGames": 2,
       "quickSelfGames": 2,
       "quickTurnRatio": 0.55,
-      "refineTopFrac": 0.35
+      "refineTopFrac": 0.5
     },
     "progress": {
       "level": 0,
       "every": 1
+    },
+    "verification": {
+      "enabled": true,
+      "depths": [
+        4,
+        5,
+        6
+      ],
+      "maxAttempts": 800,
+      "scenarios": 52
     },
     "selfPlay": {
       "enabled": true,
@@ -272,7 +440,8 @@
       "maxPool": 8
     },
     "opponents": [
-      "http://localhost:7000 (legacy) x8"
+      "snek-two (legacy) x10",
+      "shapeshifter (standard) x10"
     ]
   }
 }
