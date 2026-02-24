@@ -444,7 +444,7 @@ function httpBot(baseUrl, options = {}) {
         };
         const enemySnake = {
             id: "trainer",
-            name: "JS-Bot",
+            name: "local-old",
             health: enemy.health,
             body: enemy.body.map(p => ({ x: p.x, y: p.y }))
         };

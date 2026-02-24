@@ -1,5 +1,5 @@
 const DEFAULT_OPPONENT_ROSTER = Object.freeze([
-    Object.freeze({ name: "JS-Bot", url: "http://localhost:9000", type: "modern" }),
+    Object.freeze({ name: "local-old", url: "http://localhost:9000", type: "modern" }),
     Object.freeze({ name: "shapeshifter", url: "http://localhost:8080", type: "standard" }),
     Object.freeze({ name: "snek-two", url: "http://localhost:7000", type: "legacy" })
 ]);

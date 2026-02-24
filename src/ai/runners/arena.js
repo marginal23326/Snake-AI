@@ -132,7 +132,7 @@ const GREEN = "\x1b[32m";
 const CYAN = "\x1b[36m";
 
 const BOT_COLOR_BY_NAME = {
-    "JS-Bot": BLUE,
+    "local-old": BLUE,
     "shapeshifter": GREEN,
     "snek-two": RED
 };
@@ -142,14 +142,14 @@ const BOT_ROSTER = DEFAULT_OPPONENT_ROSTER.map(bot => ({
     color: BOT_COLOR_BY_NAME[bot.name] || CYAN
 }));
 
-let PLAYER_1 = { ...BOT_ROSTER[0], name: "old-local", type: "local", url: null };
+let PLAYER_1 = { ...BOT_ROSTER[0], name: "local", type: "local", url: null };
 
 let PLAYER_2;
 if (SELF_PLAY) {
     PLAYER_1 = { ...PLAYER_1, type: "local", url: null };
     PLAYER_2 = { ...PLAYER_1, name: `${PLAYER_1.name}-red`, url: null, type: "local" };
 } else {
-    const OPPONENT_NAME = OPPONENT_VALUE || "JS-Bot";
+    const OPPONENT_NAME = OPPONENT_VALUE || "local-old";
     const resolvedOpponent = findRosterOpponent(OPPONENT_NAME, BOT_ROSTER);
     PLAYER_2 = resolvedOpponent || BOT_ROSTER[0];
 }
