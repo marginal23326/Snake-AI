@@ -30,9 +30,9 @@ impl eframe::App for SnakeGuiApp {
 pub fn run_gui() -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size(Vec2::new(1200.0, 700.0))
-            .with_min_inner_size(Vec2::new(900.0, 600.0))
-            .with_title("Snake Lab Rust"),
+            .with_inner_size(Vec2::new(1024.0, 576.0))
+            .with_min_inner_size(Vec2::new(640.0, 360.0))
+            .with_title("Snake AI"),
         ..Default::default()
     };
 
