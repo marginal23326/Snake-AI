@@ -100,16 +100,16 @@ pub fn decide_move_debug(
 
     crate::PERF_STATS.with(|s| {
         let st = s.borrow();
-        println!("=== AI TURN PROFILING ===");
-        println!("Total search time: {:?}", elapsed);
-        println!("Nodes (negamax calls): {}", st.negamax_calls);
+        println!("=== PROFILING ===");
+        println!("Total time: {:?}", elapsed);
+        println!("Nodes: {}", st.negamax_calls);
         println!("Eval: {:>8} calls, {:?}", st.eval_calls, st.eval_duration);
         println!("Voronoi: {:>8} calls, {:?}", st.voronoi_calls, st.voronoi_duration);
         println!("Floodfill: {:>8} calls, {:?}", st.floodfill_calls, st.floodfill_duration);
         println!("MoveGen: {:>8} calls, {:?}", st.move_gen_calls, st.move_gen_duration);
         println!("DistMap: {:>8} calls, {:?}", st.distmap_calls, st.distmap_duration);
         println!("ShortDist: {:>8} calls, {:?}", st.shortest_dist_calls, st.shortest_dist_duration);
-        println!("=========================\n");
+        println!("======\n");
     });
 
     Decision {
