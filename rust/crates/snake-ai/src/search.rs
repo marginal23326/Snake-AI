@@ -182,12 +182,7 @@ fn should_extend_leaf(grid: &Grid, me: &AgentState, enemy: &AgentState, cfg: &Ai
     get_safe_neighbors(grid, enemy, me).len() <= 2
 }
 
-fn shortest_distance_to_tail(
-    grid: &Grid,
-    start: Point,
-    body: &[Point],
-    buffers: &mut SearchBuffers,
-) -> f64 {
+fn shortest_distance_to_tail(grid: &Grid, start: Point, body: &[Point], buffers: &mut SearchBuffers) -> f64 {
     let t_start = std::time::Instant::now();
     let res = shortest_distance_to_tail_inner(grid, start, body, buffers);
     crate::PERF_STATS.with(|s| {
@@ -198,12 +193,7 @@ fn shortest_distance_to_tail(
     res
 }
 
-fn shortest_distance_to_tail_inner(
-    grid: &Grid,
-    start: Point,
-    body: &[Point],
-    buffers: &mut SearchBuffers,
-) -> f64 {
+fn shortest_distance_to_tail_inner(grid: &Grid, start: Point, body: &[Point], buffers: &mut SearchBuffers) -> f64 {
     if body.len() < 2 {
         return f64::INFINITY;
     }
@@ -249,7 +239,7 @@ fn shortest_distance_to_tail_inner(
 
         for i in 0..len {
             let n_idx = unsafe { *neighbors.get_unchecked(i) };
-            
+
             if n_idx == tail_idx {
                 return nd as f64;
             }
@@ -257,7 +247,9 @@ fn shortest_distance_to_tail_inner(
             if unsafe { *sd_gen.get_unchecked(n_idx) } != generation {
                 let cell = unsafe { *cells.get_unchecked(n_idx) };
                 if cell <= 1 {
-                    unsafe { *sd_gen.get_unchecked_mut(n_idx) = generation; }
+                    unsafe {
+                        *sd_gen.get_unchecked_mut(n_idx) = generation;
+                    }
                     queue.push((n_idx as u32) | ((nd as u32) << 16));
                 }
             }
@@ -269,9 +261,9 @@ fn shortest_distance_to_tail_inner(
 
 pub fn negamax(
     grid: &mut Grid,
-    me: &AgentState,
-    enemy: &AgentState,
-    food: &[Point],
+    me: &mut AgentState,
+    enemy: &mut AgentState,
+    food: &mut Vec<Point>,
     dist_map: Option<&[i16]>,
     depth: usize,
     mut alpha: f64,
@@ -332,10 +324,7 @@ pub fn negamax(
     }
 
     if depth == 0 {
-        if root_depth >= 3
-            && q_depth < QUIESCENCE_MAX_EXTENSIONS
-            && should_extend_leaf(grid, me, enemy, cfg)
-        {
+        if root_depth >= 3 && q_depth < QUIESCENCE_MAX_EXTENSIONS && should_extend_leaf(grid, me, enemy, cfg) {
             return negamax(
                 grid,
                 me,
@@ -356,8 +345,7 @@ pub fn negamax(
                 buffers,
             );
         }
-        
-        // Swap references for the mirrored evaluation
+
         let score = if side == 0 {
             evaluate(grid, me, enemy, food, dist_map, cfg, buffers)
         } else {
@@ -402,7 +390,7 @@ pub fn negamax(
 
             let mut min_a = 1000;
             let mut min_b = 1000;
-            for f in food {
+            for f in food.iter() {
                 let da = (a.x - f.x).abs() + (a.y - f.y).abs();
                 let db = (b.x - f.x).abs() + (b.y - f.y).abs();
                 min_a = min_a.min(da);
@@ -441,17 +429,26 @@ pub fn negamax(
             }
         }
 
+        let tie_break = if is_root {
+            root_tie_breaker(me, enemy, grid.width, grid.height, mv)
+        } else {
+            0.0
+        };
+
         let original_head_val = grid.get(mv.x, mv.y);
         let ate_food = original_head_val == 1;
 
         let mut tail_restore: Option<(i32, i32, i8)> = None;
-        let mut new_body = Vec::with_capacity(me.body.len() + 1);
-        new_body.push(snake_domain::Point { x: mv.x, y: mv.y });
-        new_body.extend_from_slice(&me.body);
+        let mut popped_tail = None;
 
         let mut next_hash = current_hash;
         let old_health = me.health;
         let new_health = if ate_food { 100 } else { old_health - 1 };
+
+        // --- MUTATE STATE ---
+        me.health = new_health;
+        me.body.insert(0, snake_domain::Point { x: mv.x, y: mv.y });
+
         let cell_id: i8 = if side == 0 { 2 } else { 3 };
 
         next_hash = zobrist.xor_health(next_hash, old_health, new_health, side == 0);
@@ -459,7 +456,8 @@ pub fn negamax(
         next_hash = zobrist.xor(next_hash, mv.x, mv.y, cell_id);
 
         if !ate_food {
-            if let Some(tail) = new_body.pop() {
+            if let Some(tail) = me.body.pop() {
+                popped_tail = Some(tail);
                 if tail.x != mv.x || tail.y != mv.y {
                     let original_tail_val = grid.get(tail.x, tail.y);
                     if original_tail_val == cell_id {
@@ -472,25 +470,21 @@ pub fn negamax(
         }
 
         grid.set(mv.x, mv.y, cell_id);
-        
-        let next_me = AgentState {
-            body: new_body,
-            health: new_health,
-        };
 
-        let next_food_vec;
-        let next_food = if ate_food {
-            next_food_vec = food.iter().copied().filter(|f| f.x != mv.x || f.y != mv.y).collect::<Vec<_>>();
-            next_food_vec.as_slice()
-        } else {
-            food
-        };
+        let mut ate_food_idx = None;
+        if ate_food {
+            if let Some(idx) = food.iter().position(|f| f.x == mv.x && f.y == mv.y) {
+                food.swap_remove(idx);
+                ate_food_idx = Some(idx);
+            }
+        }
 
+        // SWAP: Enemy becomes me for next recursion
         let child = negamax(
             grid,
-            enemy,     // SWAP: Enemy becomes me for next recursion
-            &next_me,  // SWAP: We pass reference to next_me directly! No cloning!
-            next_food,
+            enemy,
+            me,
+            food,
             None,
             depth - 1,
             -beta,
@@ -506,10 +500,23 @@ pub fn negamax(
             buffers,
         );
 
+        // --- RESTORE STATE ---
         grid.set(mv.x, mv.y, original_head_val);
         if let Some((tx, ty, tv)) = tail_restore {
             grid.set(tx, ty, tv);
         }
+
+        if let Some(idx) = ate_food_idx {
+            food.push(snake_domain::Point { x: mv.x, y: mv.y });
+            let last = food.len() - 1;
+            food.swap(idx, last);
+        }
+
+        me.body.remove(0);
+        if let Some(tail) = popped_tail {
+            me.body.push(tail);
+        }
+        me.health = old_health;
 
         let mut modified_score = -child.score;
         if collision_penalty != 0.0 {
@@ -521,27 +528,23 @@ pub fn negamax(
         }
 
         if is_root {
-            let my_len = me.body.len();
+            let my_len = me.body.len() + if ate_food { 1 } else { 0 };
             let enemy_len = enemy.body.len();
             let dense_tail_race = my_len >= 20
                 && enemy_len >= 20
-                && ((my_len + enemy_len) as f64 / (grid.width * grid.height) as f64)
-                    >= cfg.dense_tail_race_occupancy;
+                && ((my_len + enemy_len) as f64 / (grid.width * grid.height) as f64) >= cfg.dense_tail_race_occupancy;
 
-            let continuation_moves = get_safe_neighbors(grid, &next_me, enemy).len();
+            me.body.insert(0, snake_domain::Point { x: mv.x, y: mv.y });
+            let emulated_tail = if !ate_food { me.body.pop() } else { None };
+
+            let continuation_moves = get_safe_neighbors(grid, me, enemy).len();
 
             if continuation_moves == 0 {
                 modified_score += cfg.scores.trap_danger;
             }
 
             if dense_tail_race && !enemy.body.is_empty() {
-                let has_tail_exit = shortest_distance_to_tail(
-                    grid,
-                    Point { x: mv.x, y: mv.y },
-                    &enemy.body,
-                    buffers,
-                )
-                .is_finite();
+                let has_tail_exit = shortest_distance_to_tail(grid, Point { x: mv.x, y: mv.y }, &enemy.body, buffers).is_finite();
                 let enemy_head = enemy.body[0];
                 let enemy_head_dist = (mv.x - enemy_head.x).abs() + (mv.y - enemy_head.y).abs();
                 if continuation_moves == 1 && enemy_head_dist <= 5 {
@@ -557,14 +560,13 @@ pub fn negamax(
                     modified_score -= cfg.scores.territory_control.abs() * 2.0;
                 }
             }
+
+            me.body.remove(0);
+            if let Some(t) = emulated_tail {
+                me.body.push(t);
+            }
         }
 
-        let tie_break = if is_root {
-            root_tie_breaker(me, enemy, grid.width, grid.height, mv)
-        } else {
-            0.0
-        };
-        
         if is_root {
             child_records.push(RootChildRecord {
                 mv,
@@ -575,9 +577,7 @@ pub fn negamax(
             });
         }
 
-        if modified_score > best_score
-            || ((modified_score - best_score).abs() <= 1e-9 && tie_break > best_tie_break)
-        {
+        if modified_score > best_score || ((modified_score - best_score).abs() <= 1e-9 && tie_break > best_tie_break) {
             best_score = modified_score;
             best_move = mv;
             best_tie_break = tie_break;

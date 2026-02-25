@@ -6,7 +6,7 @@ use crate::{
     config::AiConfig,
     floodfill::flood_fill,
     grid::Grid,
-    model::{AgentState, SearchBuffers, SearchState},
+    model::{AgentState, SearchBuffers},
     pathfinding::get_food_distance_map,
     search::{RootChildRecord, negamax},
     tt::{TranspositionTable, TtMove},
@@ -44,24 +44,22 @@ fn fallback_move(grid: &Grid, me: &AgentState, buffers: &mut SearchBuffers) -> D
     candidates.first().map(|c| c.1).unwrap_or(Direction::Up)
 }
 
-pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, cols: i32, rows: i32, cfg: &AiConfig) -> Decision {
+pub fn decide_move_debug(
+    mut me: AgentState,
+    mut enemy: AgentState,
+    mut foods: Vec<Point>,
+    cols: i32,
+    rows: i32,
+    cfg: &AiConfig,
+) -> Decision {
     crate::PERF_STATS.with(|s| *s.borrow_mut() = crate::PerfStats::default());
 
     let started = Instant::now();
     let mut grid = Grid::from_state(cols, rows, &foods, &me.body, &enemy.body);
-
-    let mut state = SearchState {
-        me,
-        enemy,
-        food: foods,
-        cols,
-        rows,
-        dist_map: None,
-    };
-    state.dist_map = Some(get_food_distance_map(&grid, &state.food));
+    let dist_map_vec = get_food_distance_map(&grid, &foods);
 
     let zobrist = Zobrist::new(cols, rows);
-    let initial_hash = zobrist.compute_hash(&grid, state.me.health, state.enemy.health);
+    let initial_hash = zobrist.compute_hash(&grid, me.health, enemy.health);
     let mut tt = TranspositionTable::default();
     let mut history_table = [vec![0i32; (cols * rows * 4) as usize], vec![0i32; (cols * rows * 4) as usize]];
     tt.clear();
@@ -70,10 +68,10 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
 
     let result = negamax(
         &mut grid,
-        &state.me,
-        &state.enemy,
-        &state.food,
-        state.dist_map.as_deref(),
+        &mut me,
+        &mut enemy,
+        &mut foods,
+        Some(&dist_map_vec),
         cfg.max_depth,
         f64::NEG_INFINITY,
         f64::INFINITY,
@@ -91,7 +89,7 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
     let selected = result
         .mv
         .map(|m: TtMove| m.dir)
-        .unwrap_or_else(|| fallback_move(&grid, &state.me, &mut buffers));
+        .unwrap_or_else(|| fallback_move(&grid, &me, &mut buffers));
 
     let mut log = format!("Score: {}", result.score.floor() as i64);
     if result.mv.is_none() {
