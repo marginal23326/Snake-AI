@@ -2,8 +2,8 @@ use crate::grid::Grid;
 
 #[derive(Debug, Clone)]
 pub struct Zobrist {
-    width: i32,
-    height: i32,
+    pub width: i32,
+    pub height: i32,
     table: Vec<[u64; 4]>,
     my_health: [u64; 101],
     enemy_health: [u64; 101],

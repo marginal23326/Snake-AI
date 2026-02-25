@@ -27,7 +27,30 @@ pub struct SearchResult {
     pub children: Vec<RootChildRecord>,
 }
 
-fn get_safe_neighbors(grid: &Grid, me: &AgentState, enemy: &AgentState) -> Vec<TtMove> {
+struct MoveList {
+    moves: [TtMove; 4],
+    count: usize,
+}
+
+impl MoveList {
+    fn new() -> Self {
+        Self {
+            moves: [TtMove::default(); 4],
+            count: 0,
+        }
+    }
+
+    fn push(&mut self, m: TtMove) {
+        self.moves[self.count] = m;
+        self.count += 1;
+    }
+
+    fn as_mut_slice(&mut self) -> &mut [TtMove] {
+        &mut self.moves[0..self.count]
+    }
+}
+
+fn get_safe_neighbors(grid: &Grid, me: &AgentState, enemy: &AgentState) -> MoveList {
     let start = std::time::Instant::now();
     let res = get_safe_neighbors_inner(grid, me, enemy);
     crate::PERF_STATS.with(|s| {
@@ -38,11 +61,11 @@ fn get_safe_neighbors(grid: &Grid, me: &AgentState, enemy: &AgentState) -> Vec<T
     res
 }
 
-fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) -> Vec<TtMove> {
-    let mut moves = Vec::with_capacity(4);
+fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) -> MoveList {
+    let mut list = MoveList::new();
     let my_body = &me.body;
     if my_body.is_empty() {
-        return moves;
+        return list;
     }
     let opp_body = &enemy.body;
     let head = my_body[0];
@@ -107,7 +130,7 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         }
 
         if is_safe {
-            moves.push(TtMove {
+            list.push(TtMove {
                 x: nx,
                 y: ny,
                 dir,
@@ -116,7 +139,7 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         }
     }
 
-    moves
+    list
 }
 
 fn root_tie_breaker(me: &AgentState, enemy: &AgentState, cols: i32, rows: i32, mv: TtMove) -> f64 {
@@ -173,13 +196,13 @@ fn should_extend_leaf(grid: &Grid, me: &AgentState, enemy: &AgentState, cfg: &Ai
         return false;
     }
 
-    let my_moves = get_safe_neighbors(grid, me, enemy).len();
+    let my_moves = get_safe_neighbors(grid, me, enemy).count;
     if my_moves <= 2 {
         return true;
     }
 
     // mirrored check
-    get_safe_neighbors(grid, enemy, me).len() <= 2
+    get_safe_neighbors(grid, enemy, me).count <= 2
 }
 
 fn shortest_distance_to_tail(grid: &Grid, start: Point, body: &[Point], buffers: &mut SearchBuffers) -> f64 {
@@ -217,7 +240,7 @@ fn shortest_distance_to_tail_inner(grid: &Grid, start: Point, body: &[Point], bu
     let sd_gen = &mut buffers.sd_gen;
 
     let start_idx = (start.y * width + start.x) as usize;
-    queue.push(start_idx as u32); // dist is 0 internally shifted
+    queue.push(start_idx as u32);
     sd_gen[start_idx] = generation;
 
     let mut head = 0usize;
@@ -285,7 +308,8 @@ pub fn negamax(
 
     if depth != root_depth {
         if let Some(entry) = tt_entry {
-            if entry.depth >= depth {
+            // CAST: u8 from TT back to usize for comparison
+            if (entry.depth as usize) >= depth {
                 match entry.flag {
                     TtFlag::Exact => {
                         return SearchResult {
@@ -360,8 +384,8 @@ pub fn negamax(
 
     let head = me.body[0];
     let head_idx = (head.y * grid.width + head.x) as usize;
-    let moves = get_safe_neighbors(grid, me, enemy);
-    if moves.is_empty() {
+    let mut move_list = get_safe_neighbors(grid, me, enemy);
+    if move_list.count == 0 {
         return SearchResult {
             score: cfg.scores.loss - depth as f64,
             mv: None,
@@ -369,10 +393,11 @@ pub fn negamax(
         };
     }
 
-    let mut ordered_moves = moves;
+    let moves = move_list.as_mut_slice();
     let pv_move = tt_entry.and_then(|e| e.mv);
-    if ordered_moves.len() > 1 {
-        ordered_moves.sort_by(|a, b| {
+
+    if moves.len() > 1 {
+        moves.sort_by(|a, b| {
             if let Some(pv) = pv_move {
                 if a.x == pv.x && a.y == pv.y {
                     return std::cmp::Ordering::Less;
@@ -409,11 +434,11 @@ pub fn negamax(
 
     let is_root = root_depth == depth && side == 0;
     let mut child_records = Vec::new();
-    let mut best_move = ordered_moves[0];
+    let mut best_move = moves[0];
     let mut best_score = f64::NEG_INFINITY;
     let mut best_tie_break = f64::NEG_INFINITY;
 
-    for mv in ordered_moves {
+    for &mv in moves.iter() {
         let mut collision_penalty = 0.0;
         if side == 0 && !enemy.body.is_empty() {
             let opp_head = enemy.body[0];
@@ -445,7 +470,6 @@ pub fn negamax(
         let old_health = me.health;
         let new_health = if ate_food { 100 } else { old_health - 1 };
 
-        // --- MUTATE STATE ---
         me.health = new_health;
         me.body.insert(0, snake_domain::Point { x: mv.x, y: mv.y });
 
@@ -479,7 +503,6 @@ pub fn negamax(
             }
         }
 
-        // SWAP: Enemy becomes me for next recursion
         let child = negamax(
             grid,
             enemy,
@@ -500,7 +523,6 @@ pub fn negamax(
             buffers,
         );
 
-        // --- RESTORE STATE ---
         grid.set(mv.x, mv.y, original_head_val);
         if let Some((tx, ty, tv)) = tail_restore {
             grid.set(tx, ty, tv);
@@ -537,7 +559,7 @@ pub fn negamax(
             me.body.insert(0, snake_domain::Point { x: mv.x, y: mv.y });
             let emulated_tail = if !ate_food { me.body.pop() } else { None };
 
-            let continuation_moves = get_safe_neighbors(grid, me, enemy).len();
+            let continuation_moves = get_safe_neighbors(grid, me, enemy).count;
 
             if continuation_moves == 0 {
                 modified_score += cfg.scores.trap_danger;

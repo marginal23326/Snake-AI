@@ -1,6 +1,4 @@
-# Snake Lab Rust
-
-Rust rewrite of the project in a dedicated workspace.
+# Snake AI
 
 ## Workspace
 
@@ -35,18 +33,7 @@ cargo run -p snake-app -- trainer --gens=25 --pop=30
 
 ## Tests
 
-```bash
-cargo test
-```
 
-Regression parity test is in:
+Regression test is in:
 
 - `crates/snake-io/tests/scenario_regression.rs`
-
-## Migration Script
-
-Legacy scenarios can be migrated with:
-
-```bash
-node ../tools/migrate_scenarios_v1_to_v2.js
-```

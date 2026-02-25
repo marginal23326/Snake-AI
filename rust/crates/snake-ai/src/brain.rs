@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::time::Instant;
 
 use snake_domain::{Direction, Point};
@@ -19,6 +20,58 @@ pub struct Decision {
     pub score: f64,
     pub log: String,
     pub root_children: Vec<RootChildRecord>,
+}
+
+struct BrainMemory {
+    tt: TranspositionTable,
+    history: [Vec<i32>; 2],
+    buffers: SearchBuffers,
+    zobrist: Option<Zobrist>,
+    max_grid: usize,
+}
+
+impl BrainMemory {
+    fn new() -> Self {
+        Self {
+            tt: TranspositionTable::new(1 << 20), 
+            history: [vec![], vec![]],
+            buffers: SearchBuffers::new(0),
+            zobrist: None,
+            max_grid: 0,
+        }
+    }
+
+    fn prepare(&mut self, cols: i32, rows: i32, depth: usize) {
+        let size = (cols * rows) as usize;
+        let used_history = size * 4;
+        
+        if size > self.max_grid {
+            self.history = [vec![0; used_history], vec![0; used_history]];
+            self.buffers = SearchBuffers::new(size);
+            self.max_grid = size;
+        } else {
+            self.history[0][0..used_history].fill(0);
+            self.history[1][0..used_history].fill(0);
+        }
+
+        let needs_new_zobrist = self.zobrist.as_ref().map_or(true, |z| z.width != cols || z.height != rows);
+        if needs_new_zobrist {
+            self.zobrist = Some(Zobrist::new(cols, rows));
+        }
+
+        let tt_size = match depth {
+            0..=2 => 1 << 10,
+            3..=4 => 1 << 14,
+            5..=6 => 1 << 16,
+            7..=8 => 1 << 18,
+            _ => 1 << 20,
+        };
+        self.tt.prepare_for_search(tt_size);
+    }
+}
+
+thread_local! {
+    static BRAIN_MEM: RefCell<BrainMemory> = RefCell::new(BrainMemory::new());
 }
 
 fn fallback_move(grid: &Grid, me: &AgentState, buffers: &mut SearchBuffers) -> Direction {
@@ -56,43 +109,48 @@ pub fn decide_move_debug(
 
     let started = Instant::now();
     let mut grid = Grid::from_state(cols, rows, &foods, &me.body, &enemy.body);
+
     let dist_map_vec = get_food_distance_map(&grid, &foods);
 
-    let zobrist = Zobrist::new(cols, rows);
-    let initial_hash = zobrist.compute_hash(&grid, me.health, enemy.health);
-    let mut tt = TranspositionTable::default();
-    let mut history_table = [vec![0i32; (cols * rows * 4) as usize], vec![0i32; (cols * rows * 4) as usize]];
-    tt.clear();
+    let (selected, score, root_children) = BRAIN_MEM.with(|mem_cell| {
+        let mut mem_ref = mem_cell.borrow_mut();
+        mem_ref.prepare(cols, rows, cfg.max_depth);
 
-    let mut buffers = SearchBuffers::new((cols * rows) as usize);
+        let initial_hash = mem_ref.zobrist.as_ref().unwrap().compute_hash(&grid, me.health, enemy.health);
 
-    let result = negamax(
-        &mut grid,
-        &mut me,
-        &mut enemy,
-        &mut foods,
-        Some(&dist_map_vec),
-        cfg.max_depth,
-        f64::NEG_INFINITY,
-        f64::INFINITY,
-        0,
-        cfg.max_depth,
-        initial_hash,
-        &mut history_table,
-        cfg,
-        &mut tt,
-        &zobrist,
-        0,
-        &mut buffers,
-    );
+        let BrainMemory { ref mut history, ref mut tt, ref mut buffers, ref zobrist, .. } = *mem_ref;
+        let zobrist_ref = zobrist.as_ref().unwrap();
 
-    let selected = result
-        .mv
-        .map(|m: TtMove| m.dir)
-        .unwrap_or_else(|| fallback_move(&grid, &me, &mut buffers));
+        let result = negamax(
+            &mut grid,
+            &mut me,
+            &mut enemy,
+            &mut foods,
+            Some(&dist_map_vec),
+            cfg.max_depth,
+            f64::NEG_INFINITY,
+            f64::INFINITY,
+            0,
+            cfg.max_depth,
+            initial_hash,
+            history,
+            cfg,
+            tt,
+            zobrist_ref,
+            0,
+            buffers,
+        );
 
-    let mut log = format!("Score: {}", result.score.floor() as i64);
-    if result.mv.is_none() {
+        let selected = result
+            .mv
+            .map(|m: TtMove| m.dir)
+            .unwrap_or_else(|| fallback_move(&grid, &me, buffers));
+
+        (selected, result.score, result.children)
+    });
+
+    let mut log = format!("Score: {}", score.floor() as i64);
+    if root_children.is_empty() {
         log.push_str(" | FAILSAFE");
     }
     let elapsed = started.elapsed();
@@ -100,7 +158,7 @@ pub fn decide_move_debug(
 
     crate::PERF_STATS.with(|s| {
         let st = s.borrow();
-        println!("=== PROFILING ===");
+        println!("PROFILING:");
         println!("Total time: {:?}", elapsed);
         println!("Nodes: {}", st.negamax_calls);
         println!("Eval: {:>8} calls, {:?}", st.eval_calls, st.eval_duration);
@@ -114,8 +172,8 @@ pub fn decide_move_debug(
 
     Decision {
         best_move: selected,
-        score: result.score,
+        score,
         log,
-        root_children: result.children,
+        root_children,
     }
 }
