@@ -53,30 +53,19 @@ fn shuffle_in_place<R: RngSource>(arr: &mut [Point], rng: &mut R) {
     }
 }
 
-fn check_food_needing_placement<R: RngSource>(
-    rng: &mut R,
-    settings: FoodSettings,
-    current_food_count: usize,
-) -> usize {
+fn check_food_needing_placement<R: RngSource>(rng: &mut R, settings: FoodSettings, current_food_count: usize) -> usize {
     if current_food_count < settings.minimum_food {
         return settings.minimum_food - current_food_count;
     }
 
-    if settings.food_spawn_chance > 0
-        && (100usize.saturating_sub(rng.rand_int(100))) < settings.food_spawn_chance
-    {
+    if settings.food_spawn_chance > 0 && (100usize.saturating_sub(rng.rand_int(100))) < settings.food_spawn_chance {
         return 1;
     }
 
     0
 }
 
-fn place_food_randomly_at_positions<R: RngSource>(
-    rng: &mut R,
-    food: &mut Vec<Point>,
-    count: usize,
-    positions: &mut [Point],
-) -> usize {
+fn place_food_randomly_at_positions<R: RngSource>(rng: &mut R, food: &mut Vec<Point>, count: usize, positions: &mut [Point]) -> usize {
     let n = count.min(positions.len());
     if n == 0 {
         return 0;
@@ -86,14 +75,7 @@ fn place_food_randomly_at_positions<R: RngSource>(
     n
 }
 
-fn place_food_randomly<R: RngSource>(
-    rng: &mut R,
-    width: i32,
-    height: i32,
-    snakes: &[Snake],
-    food: &mut Vec<Point>,
-    count: usize,
-) -> usize {
+fn place_food_randomly<R: RngSource>(rng: &mut R, width: i32, height: i32, snakes: &[Snake], food: &mut Vec<Point>, count: usize) -> usize {
     let mut unoccupied = get_unoccupied_points(width, height, snakes, food);
     place_food_randomly_at_positions(rng, food, count, &mut unoccupied)
 }

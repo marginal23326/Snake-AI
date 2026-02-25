@@ -38,8 +38,7 @@ fn load_resume_checkpoint(options: &TrainerOptions) -> Result<Option<TrainerChec
         return Ok(None);
     }
 
-    let raw = std::fs::read_to_string(resume_path)
-        .with_context(|| format!("failed reading resume file {}", resume_path.display()))?;
+    let raw = std::fs::read_to_string(resume_path).with_context(|| format!("failed reading resume file {}", resume_path.display()))?;
     let checkpoint = serde_json::from_str::<TrainerCheckpoint>(&raw).ok();
     Ok(checkpoint)
 }
@@ -57,20 +56,12 @@ fn save_checkpoint(path: &Path, checkpoint: &TrainerCheckpoint) -> Result<()> {
 fn trainer_settings_value(options: &TrainerOptions) -> Result<Value> {
     let mut value = serde_json::to_value(options)?;
     if let Some(obj) = value.as_object_mut() {
-        obj.insert(
-            "httpApiMode".to_owned(),
-            Value::String(format!("{:?}", options.http_api_mode)),
-        );
+        obj.insert("httpApiMode".to_owned(), Value::String(format!("{:?}", options.http_api_mode)));
     }
     Ok(value)
 }
 
-fn save_training_result(
-    path: &Path,
-    summary: &TrainerSummary,
-    tuned: &AiConfig,
-    options: &TrainerOptions,
-) -> Result<()> {
+fn save_training_result(path: &Path, summary: &TrainerSummary, tuned: &AiConfig, options: &TrainerOptions) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -85,10 +76,7 @@ fn save_training_result(
     Ok(())
 }
 
-pub async fn run_trainer(
-    base_cfg: AiConfig,
-    mut options: TrainerOptions,
-) -> Result<TrainerSummary> {
+pub async fn run_trainer(base_cfg: AiConfig, mut options: TrainerOptions) -> Result<TrainerSummary> {
     options.normalize();
 
     let mut rng = StdRng::seed_from_u64(options.seed);
@@ -105,11 +93,7 @@ pub async fn run_trainer(
         best_score = checkpoint.best_score;
         best_gen = checkpoint.best_generation.max(1);
         if let Some(resume_path) = &options.resume {
-            println!(
-                "Resumed trainer from {} at generation {}",
-                resume_path.display(),
-                start_generation
-            );
+            println!("Resumed trainer from {} at generation {}", resume_path.display(), start_generation);
         }
     }
 
@@ -170,18 +154,10 @@ pub async fn run_trainer(
             best_score
         );
 
-        let mut ranked: Vec<(Vec<f64>, f64)> = population
-            .iter()
-            .cloned()
-            .zip(scores.iter().copied())
-            .collect();
+        let mut ranked: Vec<(Vec<f64>, f64)> = population.iter().cloned().zip(scores.iter().copied()).collect();
         ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        let mut next_pop: Vec<Vec<f64>> = ranked
-            .iter()
-            .take(options.elite)
-            .map(|x| x.0.clone())
-            .collect();
+        let mut next_pop: Vec<Vec<f64>> = ranked.iter().take(options.elite).map(|x| x.0.clone()).collect();
         while next_pop.len() < options.pop {
             let p1 = tournament_select(&population, &scores, options.tourney, &mut rng);
             let p2 = tournament_select(&population, &scores, options.tourney, &mut rng);

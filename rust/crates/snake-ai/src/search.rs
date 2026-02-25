@@ -4,7 +4,7 @@ use crate::{
     config::AiConfig,
     grid::Grid,
     heuristics::evaluate,
-    model::{AgentState, SearchState},
+    model::{AgentState, SearchBuffers},
     tt::{TranspositionTable, TtFlag, TtMove},
     zobrist::Zobrist,
 };
@@ -27,13 +27,24 @@ pub struct SearchResult {
     pub children: Vec<RootChildRecord>,
 }
 
-fn get_safe_neighbors(grid: &Grid, state: &SearchState) -> Vec<TtMove> {
+fn get_safe_neighbors(grid: &Grid, me: &AgentState, enemy: &AgentState) -> Vec<TtMove> {
+    let start = std::time::Instant::now();
+    let res = get_safe_neighbors_inner(grid, me, enemy);
+    crate::PERF_STATS.with(|s| {
+        let mut st = s.borrow_mut();
+        st.move_gen_calls += 1;
+        st.move_gen_duration += start.elapsed();
+    });
+    res
+}
+
+fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) -> Vec<TtMove> {
     let mut moves = Vec::with_capacity(4);
-    let my_body = &state.me.body;
+    let my_body = &me.body;
     if my_body.is_empty() {
         return moves;
     }
-    let opp_body = &state.enemy.body;
+    let opp_body = &enemy.body;
     let head = my_body[0];
 
     let mut my_tail = None;
@@ -108,23 +119,23 @@ fn get_safe_neighbors(grid: &Grid, state: &SearchState) -> Vec<TtMove> {
     moves
 }
 
-fn root_tie_breaker(state: &SearchState, mv: TtMove) -> f64 {
-    if state.me.body.is_empty() {
+fn root_tie_breaker(me: &AgentState, enemy: &AgentState, cols: i32, rows: i32, mv: TtMove) -> f64 {
+    if me.body.is_empty() {
         return 0.0;
     }
 
-    let my_len = state.me.body.len();
-    let enemy_len = state.enemy.body.len();
+    let my_len = me.body.len();
+    let enemy_len = enemy.body.len();
 
     let mut move_into_enemy_tail_penalty = 0.0;
-    if let Some(enemy_tail) = state.enemy.body.last().copied() {
+    if let Some(enemy_tail) = enemy.body.last().copied() {
         if mv.x == enemy_tail.x && mv.y == enemy_tail.y {
             move_into_enemy_tail_penalty = 0.5;
         }
     }
 
     let mut head_contact_bias = 0.0;
-    if let Some(enemy_head) = state.enemy.body.first().copied() {
+    if let Some(enemy_head) = enemy.body.first().copied() {
         let dist = (mv.x - enemy_head.x).abs() + (mv.y - enemy_head.y).abs();
         if dist == 1 {
             if my_len > enemy_len {
@@ -138,10 +149,10 @@ fn root_tie_breaker(state: &SearchState, mv: TtMove) -> f64 {
     }
 
     let mut tail_bias = 0.0;
-    if state.cols > 0 && state.rows > 0 && my_len >= 20 && enemy_len >= 20 {
-        let density = (my_len + enemy_len) as f64 / (state.cols * state.rows) as f64;
+    if cols > 0 && rows > 0 && my_len >= 20 && enemy_len >= 20 {
+        let density = (my_len + enemy_len) as f64 / (cols * rows) as f64;
         if density >= 0.4 {
-            let my_tail = state.me.body[my_len - 1];
+            let my_tail = me.body[my_len - 1];
             let tail_dist = (mv.x - my_tail.x).abs() + (mv.y - my_tail.y).abs();
             tail_bias = -(tail_dist as f64);
         }
@@ -150,9 +161,9 @@ fn root_tie_breaker(state: &SearchState, mv: TtMove) -> f64 {
     tail_bias + head_contact_bias - move_into_enemy_tail_penalty
 }
 
-fn should_extend_leaf(grid: &Grid, state: &SearchState, cfg: &AiConfig) -> bool {
-    let my_len = state.me.body.len();
-    let enemy_len = state.enemy.body.len();
+fn should_extend_leaf(grid: &Grid, me: &AgentState, enemy: &AgentState, cfg: &AiConfig) -> bool {
+    let my_len = me.body.len();
+    let enemy_len = enemy.body.len();
     if my_len < 20 || enemy_len < 20 {
         return false;
     }
@@ -162,23 +173,37 @@ fn should_extend_leaf(grid: &Grid, state: &SearchState, cfg: &AiConfig) -> bool 
         return false;
     }
 
-    let my_moves = get_safe_neighbors(grid, state).len();
+    let my_moves = get_safe_neighbors(grid, me, enemy).len();
     if my_moves <= 2 {
         return true;
     }
 
-    let mirrored = SearchState {
-        me: state.enemy.clone(),
-        enemy: state.me.clone(),
-        food: state.food.clone(),
-        cols: state.cols,
-        rows: state.rows,
-        dist_map: None,
-    };
-    get_safe_neighbors(grid, &mirrored).len() <= 2
+    // mirrored check
+    get_safe_neighbors(grid, enemy, me).len() <= 2
 }
 
-fn shortest_distance_to_tail(grid: &Grid, start: Point, body: &[Point]) -> f64 {
+fn shortest_distance_to_tail(
+    grid: &Grid,
+    start: Point,
+    body: &[Point],
+    buffers: &mut SearchBuffers,
+) -> f64 {
+    let t_start = std::time::Instant::now();
+    let res = shortest_distance_to_tail_inner(grid, start, body, buffers);
+    crate::PERF_STATS.with(|s| {
+        let mut st = s.borrow_mut();
+        st.shortest_dist_calls += 1;
+        st.shortest_dist_duration += t_start.elapsed();
+    });
+    res
+}
+
+fn shortest_distance_to_tail_inner(
+    grid: &Grid,
+    start: Point,
+    body: &[Point],
+    buffers: &mut SearchBuffers,
+) -> f64 {
     if body.len() < 2 {
         return f64::INFINITY;
     }
@@ -192,51 +217,50 @@ fn shortest_distance_to_tail(grid: &Grid, start: Point, body: &[Point]) -> f64 {
         return 0.0;
     }
 
-    let width = grid.width;
-    let height = grid.height;
-    let size = (width * height) as usize;
+    buffers.ensure_adj(grid.width, grid.height);
+    let generation = buffers.next_gen();
+    let queue = &mut buffers.sd_queue;
+    queue.clear();
 
-    let mut seen = vec![false; size];
-    let mut qx = vec![0i32; size];
-    let mut qy = vec![0i32; size];
-    let mut qd = vec![0i32; size];
-    let dirs = [(0, 1), (0, -1), (-1, 0), (1, 0)];
+    let width = grid.width;
+    let cells = &grid.cells;
+    let sd_gen = &mut buffers.sd_gen;
+
+    let start_idx = (start.y * width + start.x) as usize;
+    queue.push(start_idx as u32); // dist is 0 internally shifted
+    sd_gen[start_idx] = generation;
 
     let mut head = 0usize;
-    let mut tail_idx = 0usize;
-    qx[tail_idx] = start.x;
-    qy[tail_idx] = start.y;
-    qd[tail_idx] = 0;
-    tail_idx += 1;
-    seen[(start.y * width + start.x) as usize] = true;
+    let tail_idx = (tail.y * width + tail.x) as usize;
 
-    while head < tail_idx {
-        let x = qx[head];
-        let y = qy[head];
-        let d = qd[head];
+    let adj_len = &buffers.adj_len;
+    let adj_list = &buffers.adj_list;
+
+    while head < queue.len() {
+        let p = unsafe { *queue.get_unchecked(head) };
         head += 1;
 
-        for (dx, dy) in dirs {
-            let nx = x + dx;
-            let ny = y + dy;
-            if nx < 0 || ny < 0 || nx >= width || ny >= height {
-                continue;
+        let curr_idx = (p & 0xFFFF) as usize;
+        let d = (p >> 16) as i32;
+        let nd = d + 1;
+
+        let len = unsafe { *adj_len.get_unchecked(curr_idx) };
+        let neighbors = unsafe { adj_list.get_unchecked(curr_idx) };
+
+        for i in 0..len {
+            let n_idx = unsafe { *neighbors.get_unchecked(i) };
+            
+            if n_idx == tail_idx {
+                return nd as f64;
             }
 
-            if nx == tail.x && ny == tail.y {
-                return (d + 1) as f64;
+            if unsafe { *sd_gen.get_unchecked(n_idx) } != generation {
+                let cell = unsafe { *cells.get_unchecked(n_idx) };
+                if cell <= 1 {
+                    unsafe { *sd_gen.get_unchecked_mut(n_idx) = generation; }
+                    queue.push((n_idx as u32) | ((nd as u32) << 16));
+                }
             }
-
-            let idx = (ny * width + nx) as usize;
-            if seen[idx] || !grid.is_safe(nx, ny) {
-                continue;
-            }
-            seen[idx] = true;
-
-            qx[tail_idx] = nx;
-            qy[tail_idx] = ny;
-            qd[tail_idx] = d + 1;
-            tail_idx += 1;
         }
     }
 
@@ -245,7 +269,10 @@ fn shortest_distance_to_tail(grid: &Grid, start: Point, body: &[Point]) -> f64 {
 
 pub fn negamax(
     grid: &mut Grid,
-    state: &SearchState,
+    me: &AgentState,
+    enemy: &AgentState,
+    food: &[Point],
+    dist_map: Option<&[i16]>,
     depth: usize,
     mut alpha: f64,
     mut beta: f64,
@@ -257,7 +284,10 @@ pub fn negamax(
     tt: &mut TranspositionTable,
     zobrist: &Zobrist,
     q_depth: usize,
+    buffers: &mut SearchBuffers,
 ) -> SearchResult {
+    crate::PERF_STATS.with(|s| s.borrow_mut().negamax_calls += 1);
+
     let original_alpha = alpha;
     let tt_entry = tt.get(current_hash);
 
@@ -286,14 +316,14 @@ pub fn negamax(
         }
     }
 
-    if state.me.body.is_empty() || state.me.health <= 0 {
+    if me.body.is_empty() || me.health <= 0 {
         return SearchResult {
             score: cfg.scores.loss - depth as f64,
             mv: None,
             children: Vec::new(),
         };
     }
-    if state.enemy.body.is_empty() || state.enemy.health <= 0 {
+    if enemy.body.is_empty() || enemy.health <= 0 {
         return SearchResult {
             score: cfg.scores.win + depth as f64,
             mv: None,
@@ -304,11 +334,14 @@ pub fn negamax(
     if depth == 0 {
         if root_depth >= 3
             && q_depth < QUIESCENCE_MAX_EXTENSIONS
-            && should_extend_leaf(grid, state, cfg)
+            && should_extend_leaf(grid, me, enemy, cfg)
         {
             return negamax(
                 grid,
-                state,
+                me,
+                enemy,
+                food,
+                dist_map,
                 1,
                 alpha,
                 beta,
@@ -320,20 +353,15 @@ pub fn negamax(
                 tt,
                 zobrist,
                 q_depth + 1,
+                buffers,
             );
         }
+        
+        // Swap references for the mirrored evaluation
         let score = if side == 0 {
-            evaluate(grid, state, cfg)
+            evaluate(grid, me, enemy, food, dist_map, cfg, buffers)
         } else {
-            let mirrored = SearchState {
-                me: state.enemy.clone(),
-                enemy: state.me.clone(),
-                food: state.food.clone(),
-                cols: state.cols,
-                rows: state.rows,
-                dist_map: None,
-            };
-            -evaluate(grid, &mirrored, cfg)
+            -evaluate(grid, enemy, me, food, dist_map, cfg, buffers)
         };
         return SearchResult {
             score,
@@ -342,9 +370,9 @@ pub fn negamax(
         };
     }
 
-    let head = state.me.body[0];
+    let head = me.body[0];
     let head_idx = (head.y * grid.width + head.x) as usize;
-    let mut moves = get_safe_neighbors(grid, state);
+    let moves = get_safe_neighbors(grid, me, enemy);
     if moves.is_empty() {
         return SearchResult {
             score: cfg.scores.loss - depth as f64,
@@ -353,10 +381,10 @@ pub fn negamax(
         };
     }
 
+    let mut ordered_moves = moves;
     let pv_move = tt_entry.and_then(|e| e.mv);
-    if moves.len() > 1 {
-        let food = &state.food;
-        moves.sort_by(|a, b| {
+    if ordered_moves.len() > 1 {
+        ordered_moves.sort_by(|a, b| {
             if let Some(pv) = pv_move {
                 if a.x == pv.x && a.y == pv.y {
                     return std::cmp::Ordering::Less;
@@ -393,18 +421,18 @@ pub fn negamax(
 
     let is_root = root_depth == depth && side == 0;
     let mut child_records = Vec::new();
-    let mut best_move = moves[0];
+    let mut best_move = ordered_moves[0];
     let mut best_score = f64::NEG_INFINITY;
     let mut best_tie_break = f64::NEG_INFINITY;
 
-    for mv in moves {
+    for mv in ordered_moves {
         let mut collision_penalty = 0.0;
-        if side == 0 && !state.enemy.body.is_empty() {
-            let opp_head = state.enemy.body[0];
+        if side == 0 && !enemy.body.is_empty() {
+            let opp_head = enemy.body[0];
             let dist = (mv.x - opp_head.x).abs() + (mv.y - opp_head.y).abs();
             if dist == 1 {
-                let my_len = state.me.body.len();
-                let opp_len = state.enemy.body.len();
+                let my_len = me.body.len();
+                let opp_len = enemy.body.len();
                 if opp_len > my_len {
                     collision_penalty = cfg.scores.head_on_collision;
                 } else if opp_len == my_len {
@@ -417,12 +445,12 @@ pub fn negamax(
         let ate_food = original_head_val == 1;
 
         let mut tail_restore: Option<(i32, i32, i8)> = None;
-        let mut new_body = Vec::with_capacity(state.me.body.len() + 1);
+        let mut new_body = Vec::with_capacity(me.body.len() + 1);
         new_body.push(snake_domain::Point { x: mv.x, y: mv.y });
-        new_body.extend_from_slice(&state.me.body);
+        new_body.extend_from_slice(&me.body);
 
         let mut next_hash = current_hash;
-        let old_health = state.me.health;
+        let old_health = me.health;
         let new_health = if ate_food { 100 } else { old_health - 1 };
         let cell_id: i8 = if side == 0 { 2 } else { 3 };
 
@@ -444,30 +472,26 @@ pub fn negamax(
         }
 
         grid.set(mv.x, mv.y, cell_id);
-        let next_state = SearchState {
-            me: state.enemy.clone(),
-            enemy: AgentState {
-                body: new_body.clone(),
-                health: new_health,
-            },
-            food: if ate_food {
-                state
-                    .food
-                    .iter()
-                    .copied()
-                    .filter(|f| f.x != mv.x || f.y != mv.y)
-                    .collect()
-            } else {
-                state.food.clone()
-            },
-            cols: state.cols,
-            rows: state.rows,
-            dist_map: None,
+        
+        let next_me = AgentState {
+            body: new_body,
+            health: new_health,
+        };
+
+        let next_food_vec;
+        let next_food = if ate_food {
+            next_food_vec = food.iter().copied().filter(|f| f.x != mv.x || f.y != mv.y).collect::<Vec<_>>();
+            next_food_vec.as_slice()
+        } else {
+            food
         };
 
         let child = negamax(
             grid,
-            &next_state,
+            enemy,     // SWAP: Enemy becomes me for next recursion
+            &next_me,  // SWAP: We pass reference to next_me directly! No cloning!
+            next_food,
+            None,
             depth - 1,
             -beta,
             -alpha,
@@ -479,6 +503,7 @@ pub fn negamax(
             tt,
             zobrist,
             q_depth,
+            buffers,
         );
 
         grid.set(mv.x, mv.y, original_head_val);
@@ -496,38 +521,28 @@ pub fn negamax(
         }
 
         if is_root {
-            let my_len = state.me.body.len();
-            let enemy_len = state.enemy.body.len();
+            let my_len = me.body.len();
+            let enemy_len = enemy.body.len();
             let dense_tail_race = my_len >= 20
                 && enemy_len >= 20
                 && ((my_len + enemy_len) as f64 / (grid.width * grid.height) as f64)
                     >= cfg.dense_tail_race_occupancy;
 
-            let continuation_moves = get_safe_neighbors(
-                grid,
-                &SearchState {
-                    me: AgentState {
-                        body: new_body.clone(),
-                        health: new_health,
-                    },
-                    enemy: state.enemy.clone(),
-                    food: state.food.clone(),
-                    cols: state.cols,
-                    rows: state.rows,
-                    dist_map: None,
-                },
-            )
-            .len();
+            let continuation_moves = get_safe_neighbors(grid, &next_me, enemy).len();
 
             if continuation_moves == 0 {
                 modified_score += cfg.scores.trap_danger;
             }
 
-            if dense_tail_race && !state.enemy.body.is_empty() {
-                let has_tail_exit =
-                    shortest_distance_to_tail(grid, Point { x: mv.x, y: mv.y }, &state.enemy.body)
-                        .is_finite();
-                let enemy_head = state.enemy.body[0];
+            if dense_tail_race && !enemy.body.is_empty() {
+                let has_tail_exit = shortest_distance_to_tail(
+                    grid,
+                    Point { x: mv.x, y: mv.y },
+                    &enemy.body,
+                    buffers,
+                )
+                .is_finite();
+                let enemy_head = enemy.body[0];
                 let enemy_head_dist = (mv.x - enemy_head.x).abs() + (mv.y - enemy_head.y).abs();
                 if continuation_moves == 1 && enemy_head_dist <= 5 {
                     modified_score -= cfg.scores.territory_control.abs() * 120.0;
@@ -535,7 +550,7 @@ pub fn negamax(
                         modified_score -= cfg.scores.territory_control.abs() * 140.0;
                     }
                 }
-                if let Some(enemy_tail) = state.enemy.body.last().copied()
+                if let Some(enemy_tail) = enemy.body.last().copied()
                     && mv.x == enemy_tail.x
                     && mv.y == enemy_tail.y
                 {
@@ -545,10 +560,11 @@ pub fn negamax(
         }
 
         let tie_break = if is_root {
-            root_tie_breaker(state, mv)
+            root_tie_breaker(me, enemy, grid.width, grid.height, mv)
         } else {
             0.0
         };
+        
         if is_root {
             child_records.push(RootChildRecord {
                 mv,

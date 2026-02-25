@@ -43,13 +43,7 @@ impl Grid {
         matches!(self.get(x, y), 0 | 1)
     }
 
-    pub fn from_state(
-        cols: i32,
-        rows: i32,
-        food: &[Point],
-        my_body: &[Point],
-        enemy_body: &[Point],
-    ) -> Self {
+    pub fn from_state(cols: i32, rows: i32, food: &[Point], my_body: &[Point], enemy_body: &[Point]) -> Self {
         let mut g = Self::new(cols, rows);
         for f in food {
             g.set(f.x, f.y, 1);

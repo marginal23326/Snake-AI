@@ -43,11 +43,7 @@ pub(crate) struct ArenaSnapshotFile {
     opponent_moves: Vec<String>,
 }
 
-pub(crate) fn snapshot_path_for_mode(
-    base: &Path,
-    mode: ArenaFindMode,
-    with_suffix: bool,
-) -> PathBuf {
+pub(crate) fn snapshot_path_for_mode(base: &Path, mode: ArenaFindMode, with_suffix: bool) -> PathBuf {
     if !with_suffix {
         return base.to_path_buf();
     }
@@ -64,12 +60,7 @@ pub(crate) fn snapshot_path_for_mode(
     base.with_file_name(file_name)
 }
 
-pub(crate) fn build_snapshot(
-    trace: &[MatchTraceFrame],
-    snapshot_ticks: usize,
-    width: i32,
-    height: i32,
-) -> Option<ArenaSnapshotFile> {
+pub(crate) fn build_snapshot(trace: &[MatchTraceFrame], snapshot_ticks: usize, width: i32, height: i32) -> Option<ArenaSnapshotFile> {
     if trace.is_empty() {
         return None;
     }
@@ -79,16 +70,9 @@ pub(crate) fn build_snapshot(
 
     let s1 = frame.state.board.snakes.iter().find(|s| s.id.0 == "s1");
     let s2 = frame.state.board.snakes.iter().find(|s| s.id.0 == "s2");
-    let local = s1
-        .cloned()
-        .unwrap_or_else(|| Snake::new("s1", "local", Vec::new(), 0));
-    let opponent = s2
-        .cloned()
-        .unwrap_or_else(|| Snake::new("s2", "opponent", Vec::new(), 0));
-    let moves = trace[idx..]
-        .iter()
-        .map(|turn| turn.opponent_move.as_lower().to_owned())
-        .collect();
+    let local = s1.cloned().unwrap_or_else(|| Snake::new("s1", "local", Vec::new(), 0));
+    let opponent = s2.cloned().unwrap_or_else(|| Snake::new("s2", "opponent", Vec::new(), 0));
+    let moves = trace[idx..].iter().map(|turn| turn.opponent_move.as_lower().to_owned()).collect();
 
     Some(ArenaSnapshotFile {
         opponent_body: opponent.body,
@@ -113,10 +97,9 @@ pub(crate) fn write_snapshot(path: &Path, snapshot: &ArenaSnapshotFile) -> Resul
 }
 
 pub(crate) fn load_snapshot(path: &Path, width: i32, height: i32) -> Result<LoadedSnapshot> {
-    let text =
-        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let snapshot: ArenaSnapshotFile = serde_json::from_str(&text)
-        .with_context(|| format!("invalid snapshot format in {}", path.display()))?;
+    let text = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let snapshot: ArenaSnapshotFile =
+        serde_json::from_str(&text).with_context(|| format!("invalid snapshot format in {}", path.display()))?;
     if snapshot.cols != width || snapshot.rows != height {
         bail!(
             "snapshot board {}x{} does not match arena board {}x{}",
@@ -145,12 +128,7 @@ pub(crate) fn load_snapshot(path: &Path, width: i32, height: i32) -> Result<Load
                 food: snapshot.foods,
                 snakes: vec![
                     Snake::new("s1", "local", snapshot.local_body, snapshot.local_health),
-                    Snake::new(
-                        "s2",
-                        "opponent",
-                        snapshot.opponent_body,
-                        snapshot.opponent_health,
-                    ),
+                    Snake::new("s2", "opponent", snapshot.opponent_body, snapshot.opponent_health),
                 ],
             },
         },

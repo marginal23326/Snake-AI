@@ -22,12 +22,7 @@ pub struct ParsedMoveRequest {
 }
 
 pub fn normalize_api_type(value: Option<&str>) -> ApiFlavor {
-    match value
-        .unwrap_or("legacy")
-        .trim()
-        .to_ascii_lowercase()
-        .as_str()
-    {
+    match value.unwrap_or("legacy").trim().to_ascii_lowercase().as_str() {
         "standard" => ApiFlavor::Standard,
         "legacy" => ApiFlavor::Legacy,
         "auto" => ApiFlavor::Auto,
@@ -56,14 +51,8 @@ pub fn parse_move_request(body: &Value) -> Result<ParsedMoveRequest> {
 fn parse_standard(body: &Value) -> Result<ParsedMoveRequest> {
     let turn = body.get("turn").and_then(Value::as_i64).unwrap_or(0) as i32;
     let board = body.get("board").context("missing board")?;
-    let width = board
-        .get("width")
-        .and_then(Value::as_i64)
-        .context("missing board.width")? as i32;
-    let height = board
-        .get("height")
-        .and_then(Value::as_i64)
-        .context("missing board.height")? as i32;
+    let width = board.get("width").and_then(Value::as_i64).context("missing board.width")? as i32;
+    let height = board.get("height").and_then(Value::as_i64).context("missing board.height")? as i32;
     let food = parse_points(board.get("food").unwrap_or(&Value::Array(vec![])));
     let snakes = parse_standard_snakes(board.get("snakes").unwrap_or(&Value::Array(vec![])));
     let you_id = body
@@ -88,20 +77,12 @@ fn parse_legacy(body: &Value) -> Result<ParsedMoveRequest> {
     let width = body
         .get("width")
         .and_then(Value::as_i64)
-        .or_else(|| {
-            body.get("board")
-                .and_then(|b| b.get("width"))
-                .and_then(Value::as_i64)
-        })
+        .or_else(|| body.get("board").and_then(|b| b.get("width")).and_then(Value::as_i64))
         .unwrap_or(15) as i32;
     let height = body
         .get("height")
         .and_then(Value::as_i64)
-        .or_else(|| {
-            body.get("board")
-                .and_then(|b| b.get("height"))
-                .and_then(Value::as_i64)
-        })
+        .or_else(|| body.get("board").and_then(|b| b.get("height")).and_then(Value::as_i64))
         .unwrap_or(15) as i32;
 
     let food_node = body.get("food").unwrap_or(&Value::Null);
@@ -110,11 +91,7 @@ fn parse_legacy(body: &Value) -> Result<ParsedMoveRequest> {
 
     let food_points = parse_points(&clean_list(food_node));
     let snakes = parse_legacy_snakes(&clean_list(snakes_node), height);
-    let you_id = clean_object(you_node)
-        .get("id")
-        .and_then(Value::as_str)
-        .unwrap_or("you")
-        .to_owned();
+    let you_id = clean_object(you_node).get("id").and_then(Value::as_str).unwrap_or("you").to_owned();
 
     Ok(ParsedMoveRequest {
         turn,
@@ -131,17 +108,8 @@ fn parse_standard_snakes(node: &Value) -> Vec<Snake> {
         .into_iter()
         .flatten()
         .map(|s| Snake {
-            id: snake_domain::SnakeId(
-                s.get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or("s")
-                    .to_owned(),
-            ),
-            name: s
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or("snake")
-                .to_owned(),
+            id: snake_domain::SnakeId(s.get("id").and_then(Value::as_str).unwrap_or("s").to_owned()),
+            name: s.get("name").and_then(Value::as_str).unwrap_or("snake").to_owned(),
             body: parse_points(s.get("body").unwrap_or(&Value::Array(vec![]))),
             health: s.get("health").and_then(Value::as_i64).unwrap_or(100) as i32,
             alive: true,
@@ -164,23 +132,10 @@ fn parse_legacy_snakes(node: &Value, height: i32) -> Vec<Snake> {
                 })
                 .collect();
             Snake {
-                id: snake_domain::SnakeId(
-                    obj.get("id")
-                        .and_then(Value::as_str)
-                        .unwrap_or("s")
-                        .to_owned(),
-                ),
-                name: obj
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or("snake")
-                    .to_owned(),
+                id: snake_domain::SnakeId(obj.get("id").and_then(Value::as_str).unwrap_or("s").to_owned()),
+                name: obj.get("name").and_then(Value::as_str).unwrap_or("snake").to_owned(),
                 body,
-                health: obj
-                    .get("health")
-                    .or_else(|| obj.get("hp"))
-                    .and_then(Value::as_i64)
-                    .unwrap_or(100) as i32,
+                health: obj.get("health").or_else(|| obj.get("hp")).and_then(Value::as_i64).unwrap_or(100) as i32,
                 alive: true,
             }
         })
@@ -217,12 +172,7 @@ fn clean_object(node: &Value) -> Value {
     node.clone()
 }
 
-pub fn build_move_payload(
-    state: &GameState,
-    you_id: &str,
-    flavor: ApiFlavor,
-    game_id: &str,
-) -> Result<Value> {
+pub fn build_move_payload(state: &GameState, you_id: &str, flavor: ApiFlavor, game_id: &str) -> Result<Value> {
     match flavor {
         ApiFlavor::Standard => Ok(build_standard_payload(state, you_id, game_id)),
         ApiFlavor::Legacy | ApiFlavor::Auto => Ok(build_legacy_payload(state, you_id, game_id)),
@@ -230,11 +180,7 @@ pub fn build_move_payload(
 }
 
 fn format_snake_for_standard(snake: &Snake) -> Value {
-    let body = snake
-        .body
-        .iter()
-        .map(|p| json!({ "x": p.x, "y": p.y }))
-        .collect::<Vec<_>>();
+    let body = snake.body.iter().map(|p| json!({ "x": p.x, "y": p.y })).collect::<Vec<_>>();
     let head = snake.body.first().copied().unwrap_or(Point { x: 0, y: 0 });
     json!({
         "id": snake.id.0,
@@ -249,12 +195,7 @@ fn format_snake_for_standard(snake: &Snake) -> Value {
 }
 
 fn build_standard_payload(state: &GameState, you_id: &str, game_id: &str) -> Value {
-    let snakes = state
-        .board
-        .snakes
-        .iter()
-        .map(format_snake_for_standard)
-        .collect::<Vec<_>>();
+    let snakes = state.board.snakes.iter().map(format_snake_for_standard).collect::<Vec<_>>();
     let you = state
         .board
         .snakes
@@ -281,8 +222,7 @@ fn build_standard_payload(state: &GameState, you_id: &str, game_id: &str) -> Val
 }
 
 fn build_legacy_payload(state: &GameState, you_id: &str, game_id: &str) -> Value {
-    let to_legacy_point =
-        |p: &Point| json!({"object": "point", "x": p.x, "y": invert_y(p.y, state.board.height)});
+    let to_legacy_point = |p: &Point| json!({"object": "point", "x": p.x, "y": invert_y(p.y, state.board.height)});
     let snakes = state
         .board
         .snakes

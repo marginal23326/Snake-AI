@@ -65,11 +65,7 @@ impl SnakeGuiApp {
                     match result {
                         Ok(summary) => self.log_line(format!(
                             "Regression done: pass={} fail={} skipped={} scenarios={} total={}ms",
-                            summary.passed,
-                            summary.failed,
-                            summary.skipped,
-                            summary.scenarios,
-                            summary.duration_ms
+                            summary.passed, summary.failed, summary.skipped, summary.scenarios, summary.duration_ms
                         )),
                         Err(err) => self.log_line(format!("Regression failed: {err}")),
                     }
@@ -80,11 +76,7 @@ impl SnakeGuiApp {
                         Ok(summary) => {
                             self.log_line(format!(
                                 "Arena done: local={} opponent={} draws={} total={} duration={}ms",
-                                summary.wins_local,
-                                summary.wins_opponent,
-                                summary.draws,
-                                summary.total_games,
-                                summary.duration_ms
+                                summary.wins_local, summary.wins_opponent, summary.draws, summary.total_games, summary.duration_ms
                             ));
                             self.arena_summary = Some(summary);
                         }

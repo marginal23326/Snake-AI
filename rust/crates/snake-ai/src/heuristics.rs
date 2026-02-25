@@ -1,7 +1,10 @@
 use snake_domain::Point;
 
 use crate::{
-    config::AiConfig, floodfill::flood_fill, grid::Grid, model::SearchState,
+    config::AiConfig,
+    floodfill::flood_fill,
+    grid::Grid,
+    model::{AgentState, SearchBuffers},
     voronoi::compute_voronoi,
 };
 
@@ -10,10 +13,35 @@ fn manhattan(a: Point, b: Point) -> i32 {
     (a.x - b.x).abs() + (a.y - b.y).abs()
 }
 
-pub fn evaluate(grid: &mut Grid, state: &SearchState, cfg: &AiConfig) -> f64 {
-    let me = &state.me;
-    let enemy = &state.enemy;
+// WRAPPER FOR PROFILING
+pub fn evaluate(
+    grid: &mut Grid,
+    me: &AgentState,
+    enemy: &AgentState,
+    food: &[Point],
+    dist_map: Option<&[i16]>,
+    cfg: &AiConfig,
+    buffers: &mut SearchBuffers,
+) -> f64 {
+    let start = std::time::Instant::now();
+    let res = evaluate_inner(grid, me, enemy, food, dist_map, cfg, buffers);
+    crate::PERF_STATS.with(|s| {
+        let mut st = s.borrow_mut();
+        st.eval_calls += 1;
+        st.eval_duration += start.elapsed();
+    });
+    res
+}
 
+fn evaluate_inner(
+    grid: &mut Grid,
+    me: &AgentState,
+    enemy: &AgentState,
+    food: &[Point],
+    dist_map: Option<&[i16]>,
+    cfg: &AiConfig,
+    buffers: &mut SearchBuffers,
+) -> f64 {
     if me.health <= 0 || me.body.is_empty() {
         return cfg.scores.loss;
     }
@@ -23,8 +51,7 @@ pub fn evaluate(grid: &mut Grid, state: &SearchState, cfg: &AiConfig) -> f64 {
 
     let mut score = 0.0;
     let occupancy = (me.body.len() + enemy.body.len()) as f64 / (grid.width * grid.height) as f64;
-    let dense_tail_race =
-        me.body.len() >= 20 && enemy.body.len() >= 20 && occupancy >= cfg.dense_tail_race_occupancy;
+    let dense_tail_race = me.body.len() >= 20 && enemy.body.len() >= 20 && occupancy >= cfg.dense_tail_race_occupancy;
 
     score += me.body.len() as f64 * cfg.scores.length;
 
@@ -41,7 +68,7 @@ pub fn evaluate(grid: &mut Grid, state: &SearchState, cfg: &AiConfig) -> f64 {
         }
     }
 
-    let voronoi = compute_voronoi(grid, my_head, enemy_head);
+    let voronoi = compute_voronoi(grid, my_head, enemy_head, buffers);
     if tail_is_safe {
         let tail = me.body[me.body.len() - 1];
         grid.set(tail.x, tail.y, original_tail_val);
@@ -51,13 +78,7 @@ pub fn evaluate(grid: &mut Grid, state: &SearchState, cfg: &AiConfig) -> f64 {
 
     let mut i_am_in_death_trap = false;
     if voronoi.my_count < me.body.len() as i32 {
-        let ff = flood_fill(
-            grid,
-            my_head.x,
-            my_head.y,
-            me.body.len() as i32 + 2,
-            Some(&me.body),
-        );
+        let ff = flood_fill(grid, my_head.x, my_head.y, me.body.len() as i32 + 2, Some(&me.body), buffers);
         let physical_space = ff.count;
         let adjusted_escape_time = ff.min_turns_to_clear + if ff.has_food { 1 } else { 0 };
         let future_len = me.body.len() as i32 + if ff.has_food { 1 } else { 0 };
@@ -79,13 +100,7 @@ pub fn evaluate(grid: &mut Grid, state: &SearchState, cfg: &AiConfig) -> f64 {
 
     if !i_am_in_death_trap && voronoi.enemy_count < enemy.body.len() as i32 {
         let en_head = enemy.body[0];
-        let en_ff = flood_fill(
-            grid,
-            en_head.x,
-            en_head.y,
-            enemy.body.len() as i32 + 2,
-            Some(&enemy.body),
-        );
+        let en_ff = flood_fill(grid, en_head.x, en_head.y, enemy.body.len() as i32 + 2, Some(&enemy.body), buffers);
         let en_space = en_ff.count;
         let en_escape = en_ff.min_turns_to_clear;
         let en_future_len = enemy.body.len() as i32 + if en_ff.has_food { 1 } else { 0 };
@@ -103,16 +118,11 @@ pub fn evaluate(grid: &mut Grid, state: &SearchState, cfg: &AiConfig) -> f64 {
         score += cfg.scores.kill_pressure;
     }
 
-    if !state.food.is_empty() {
-        let closest_dist = if let Some(map) = &state.dist_map {
+    if !food.is_empty() {
+        let closest_dist = if let Some(map) = dist_map {
             map[(my_head.y * grid.width + my_head.x) as usize] as i32
         } else {
-            state
-                .food
-                .iter()
-                .map(|f| manhattan(my_head, *f))
-                .min()
-                .unwrap_or(9999)
+            food.iter().map(|f| manhattan(my_head, *f)).min().unwrap_or(9999)
         };
 
         if closest_dist > me.health {
@@ -121,8 +131,7 @@ pub fn evaluate(grid: &mut Grid, state: &SearchState, cfg: &AiConfig) -> f64 {
 
         let buffer = me.health - closest_dist;
         let panic_value = if buffer > 0 {
-            cfg.scores.food.intensity
-                * (cfg.scores.food.threshold / (buffer as f64 + 1.0)).powf(cfg.scores.food.exponent)
+            cfg.scores.food.intensity * (cfg.scores.food.threshold / (buffer as f64 + 1.0)).powf(cfg.scores.food.exponent)
         } else {
             cfg.scores.food.intensity * 100.0
         };

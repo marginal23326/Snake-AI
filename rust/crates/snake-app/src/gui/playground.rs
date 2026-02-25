@@ -9,8 +9,7 @@ use crate::services::build_playground_state;
 
 impl SnakeGuiApp {
     pub(super) fn reset_playground(&mut self) {
-        let (state, rng) =
-            build_playground_state(self.sim_state.board.width, self.sim_state.board.height, 1);
+        let (state, rng) = build_playground_state(self.sim_state.board.width, self.sim_state.board.height, 1);
         self.sim_state = state;
         self.sim_rng = rng;
         self.player_input_queue.clear();
@@ -29,14 +28,7 @@ impl SnakeGuiApp {
     }
 
     pub(super) fn set_player_dir(&mut self, dir: Direction) {
-        let Some(player) = self
-            .sim_state
-            .board
-            .snakes
-            .iter()
-            .find(|s| s.id.0 == "s1")
-            .cloned()
-        else {
+        let Some(player) = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s1").cloned() else {
             self.player_dir = dir;
             return;
         };
@@ -44,8 +36,7 @@ impl SnakeGuiApp {
         if player.body.len() > 1 {
             let head = player.body[0];
             let neck = player.body[1];
-            let blocked =
-                (head.x + dir.vector().0 == neck.x) && (head.y + dir.vector().1 == neck.y);
+            let blocked = (head.x + dir.vector().0 == neck.x) && (head.y + dir.vector().1 == neck.y);
             if blocked {
                 return;
             }
@@ -55,11 +46,7 @@ impl SnakeGuiApp {
     }
 
     pub(super) fn queue_player_input(&mut self, dir: Direction) {
-        let last = self
-            .player_input_queue
-            .back()
-            .copied()
-            .unwrap_or(self.player_dir);
+        let last = self.player_input_queue.back().copied().unwrap_or(self.player_dir);
         if dir == last || Self::is_opposite(dir, last) {
             return;
         }
@@ -69,20 +56,8 @@ impl SnakeGuiApp {
     }
 
     pub(super) fn step_playground(&mut self) {
-        let s1 = self
-            .sim_state
-            .board
-            .snakes
-            .iter()
-            .find(|s| s.id.0 == "s1")
-            .cloned();
-        let s2 = self
-            .sim_state
-            .board
-            .snakes
-            .iter()
-            .find(|s| s.id.0 == "s2")
-            .cloned();
+        let s1 = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s1").cloned();
+        let s2 = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s2").cloned();
         let (Some(s1), Some(s2)) = (s1, s2) else {
             return;
         };
@@ -117,12 +92,7 @@ impl SnakeGuiApp {
             (SnakeId("s1".to_owned()), self.player_dir),
             (SnakeId("s2".to_owned()), ai_decision.best_move),
         ];
-        let summary = simulate_turn(
-            &mut self.sim_state,
-            &intents,
-            &mut self.sim_rng,
-            SimConfig::default(),
-        );
+        let summary = simulate_turn(&mut self.sim_state, &intents, &mut self.sim_rng, SimConfig::default());
         if !summary.dead.is_empty() {
             self.log_line(format!("Turn {} deaths: {:?}", summary.turn, summary.dead));
         }
@@ -200,29 +170,13 @@ impl SnakeGuiApp {
                 }
             }
             EditMode::Food => {
-                if !self
-                    .sim_state
-                    .board
-                    .food
-                    .iter()
-                    .any(|f| f.x == x && f.y == y)
-                {
+                if !self.sim_state.board.food.iter().any(|f| f.x == x && f.y == y) {
                     self.sim_state.board.food.push(Point { x, y });
                 }
             }
             EditMode::PaintP1 | EditMode::PaintAi => {
-                let target_id = if self.edit_mode == EditMode::PaintP1 {
-                    "s1"
-                } else {
-                    "s2"
-                };
-                if let Some(snake) = self
-                    .sim_state
-                    .board
-                    .snakes
-                    .iter_mut()
-                    .find(|s| s.id.0 == target_id)
-                {
+                let target_id = if self.edit_mode == EditMode::PaintP1 { "s1" } else { "s2" };
+                if let Some(snake) = self.sim_state.board.snakes.iter_mut().find(|s| s.id.0 == target_id) {
                     if is_new_stroke {
                         snake.body.clear();
                     }
@@ -238,14 +192,7 @@ impl SnakeGuiApp {
         self.sync_snake_state_after_edit();
     }
 
-    fn pos_to_cell(
-        pos: egui::Pos2,
-        rect: egui::Rect,
-        width: i32,
-        height: i32,
-        cell_w: f32,
-        cell_h: f32,
-    ) -> Option<(i32, i32)> {
+    fn pos_to_cell(pos: egui::Pos2, rect: egui::Rect, width: i32, height: i32, cell_w: f32, cell_h: f32) -> Option<(i32, i32)> {
         let x = ((pos.x - rect.left()) / cell_w).floor() as i32;
         let y_top = ((pos.y - rect.top()) / cell_h).floor() as i32;
         let y = height - 1 - y_top;
@@ -255,15 +202,7 @@ impl SnakeGuiApp {
         Some((x, y))
     }
 
-    fn handle_board_input(
-        &mut self,
-        response: &egui::Response,
-        rect: egui::Rect,
-        width: i32,
-        height: i32,
-        cell_w: f32,
-        cell_h: f32,
-    ) {
+    fn handle_board_input(&mut self, response: &egui::Response, rect: egui::Rect, width: i32, height: i32, cell_w: f32, cell_h: f32) {
         if response.clicked() || response.drag_started() {
             self.is_drawing = true;
             self.last_draw_cell = None;
@@ -337,24 +276,14 @@ impl SnakeGuiApp {
         for f in &food {
             let cx = rect.left() + (f.x as f32 + 0.5) * cell_w;
             let cy = rect.bottom() - (f.y as f32 + 0.5) * cell_h;
-            painter.circle_filled(
-                egui::pos2(cx, cy),
-                cell_w.min(cell_h) * 0.32,
-                Color32::from_rgb(248, 211, 71),
-            );
+            painter.circle_filled(egui::pos2(cx, cy), cell_w.min(cell_h) * 0.32, Color32::from_rgb(248, 211, 71));
         }
 
         for snake in &snakes {
             let (body_col, head_col) = if snake.id.0 == "s1" {
-                (
-                    Color32::from_rgb(58, 191, 255),
-                    Color32::from_rgb(210, 244, 255),
-                )
+                (Color32::from_rgb(58, 191, 255), Color32::from_rgb(210, 244, 255))
             } else {
-                (
-                    Color32::from_rgb(255, 74, 120),
-                    Color32::from_rgb(255, 222, 230),
-                )
+                (Color32::from_rgb(255, 74, 120), Color32::from_rgb(255, 222, 230))
             };
 
             for i in (1..snake.body.len()).rev() {
@@ -374,10 +303,7 @@ impl SnakeGuiApp {
             for (idx, p) in snake.body.iter().enumerate() {
                 let x = rect.left() + p.x as f32 * cell_w + 1.0;
                 let y = rect.bottom() - (p.y as f32 + 1.0) * cell_h + 1.0;
-                let r = egui::Rect::from_min_size(
-                    egui::pos2(x, y),
-                    Vec2::new(cell_w - 2.0, cell_h - 2.0),
-                );
+                let r = egui::Rect::from_min_size(egui::pos2(x, y), Vec2::new(cell_w - 2.0, cell_h - 2.0));
                 painter.rect_filled(r, 5.0, if idx == 0 { head_col } else { body_col });
             }
         }

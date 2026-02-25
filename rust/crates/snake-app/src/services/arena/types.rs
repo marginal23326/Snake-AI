@@ -72,12 +72,7 @@ impl ArenaFindMode {
 pub fn parse_arena_find_modes(values: &[String]) -> (Vec<ArenaFindMode>, Vec<String>) {
     let mut parsed = Vec::new();
     let mut invalid = Vec::new();
-    for token in values
-        .iter()
-        .flat_map(|v| v.split(','))
-        .map(str::trim)
-        .filter(|v| !v.is_empty())
-    {
+    for token in values.iter().flat_map(|v| v.split(',')).map(str::trim).filter(|v| !v.is_empty()) {
         if let Some(mode) = ArenaFindMode::parse(token) {
             if !parsed.contains(&mode) {
                 parsed.push(mode);

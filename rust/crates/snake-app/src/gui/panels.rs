@@ -5,8 +5,8 @@ use snake_api::ApiFlavor;
 use snake_domain::Direction;
 
 use crate::services::{
-    ArenaOptions, ArenaSummary, RegressionOptions, TrainerOptions, parse_arena_find_modes,
-    parse_depths, run_arena_with_progress, run_regression_suite, run_trainer,
+    ArenaOptions, ArenaSummary, RegressionOptions, TrainerOptions, parse_arena_find_modes, parse_depths, run_arena_with_progress,
+    run_regression_suite, run_trainer,
 };
 
 use super::state::{EditMode, SnakeGuiApp, Tab, WorkerMessage};
@@ -15,18 +15,11 @@ impl SnakeGuiApp {
     pub(super) fn draw_top_panel(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("top").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading(
-                    RichText::new("Snake Lab Rust")
-                        .size(20.0)
-                        .color(Color32::from_rgb(210, 235, 255)),
-                );
+                ui.heading(RichText::new("Snake Lab Rust").size(20.0).color(Color32::from_rgb(210, 235, 255)));
                 ui.label("Native GUI, shared core services");
                 if self.worker_running {
                     ui.separator();
-                    ui.colored_label(
-                        Color32::from_rgb(248, 211, 71),
-                        format!("Running: {}", self.worker_label),
-                    );
+                    ui.colored_label(Color32::from_rgb(248, 211, 71), format!("Running: {}", self.worker_label));
                 }
             });
             ui.separator();
@@ -115,14 +108,7 @@ impl SnakeGuiApp {
             if ui.button("Step (Space)").clicked() {
                 self.step_playground();
             }
-            if ui
-                .button(if self.auto_run {
-                    "Stop Auto"
-                } else {
-                    "Auto Run"
-                })
-                .clicked()
-            {
+            if ui.button(if self.auto_run { "Stop Auto" } else { "Auto Run" }).clicked() {
                 self.auto_run = !self.auto_run;
                 if self.auto_run {
                     self.last_auto_tick = Instant::now();
@@ -139,10 +125,7 @@ impl SnakeGuiApp {
                 .selected_text(self.player_dir.as_upper())
                 .show_ui(ui, |ui| {
                     for dir in Direction::ALL {
-                        if ui
-                            .selectable_label(self.player_dir == dir, dir.as_upper())
-                            .clicked()
-                        {
+                        if ui.selectable_label(self.player_dir == dir, dir.as_upper()).clicked() {
                             if self.auto_run {
                                 self.queue_player_input(dir);
                             } else {
@@ -155,9 +138,7 @@ impl SnakeGuiApp {
         });
 
         ui.horizontal(|ui| {
-            let mode_btn = |ui: &mut egui::Ui, label: &str, mode: EditMode, current: EditMode| {
-                ui.selectable_label(current == mode, label)
-            };
+            let mode_btn = |ui: &mut egui::Ui, label: &str, mode: EditMode, current: EditMode| ui.selectable_label(current == mode, label);
             if mode_btn(ui, "Paint P1", EditMode::PaintP1, self.edit_mode).clicked() {
                 self.edit_mode = EditMode::PaintP1;
             }
@@ -285,10 +266,9 @@ impl SnakeGuiApp {
             };
             self.start_worker("arena", move |tx| {
                 let tx_progress = tx.clone();
-                let result =
-                    Self::run_async_job(run_arena_with_progress(cfg, opts, move |progress| {
-                        let _ = tx_progress.send(WorkerMessage::ArenaProgress(progress));
-                    }));
+                let result = Self::run_async_job(run_arena_with_progress(cfg, opts, move |progress| {
+                    let _ = tx_progress.send(WorkerMessage::ArenaProgress(progress));
+                }));
                 let _ = tx.send(WorkerMessage::Arena(result));
             });
         }
@@ -362,104 +342,83 @@ impl SnakeGuiApp {
         ));
         ui.label(format!(
             "Averages: turns={:.2} local_len={:.2} opponent_len={:.2} duration={}ms",
-            summary.avg_turns,
-            summary.avg_local_length,
-            summary.avg_opponent_length,
-            summary.duration_ms
+            summary.avg_turns, summary.avg_local_length, summary.avg_opponent_length, summary.duration_ms
         ));
         if let Some(shortest) = &summary.shortest_turn_game {
-            ui.label(format!(
-                "Shortest game: {} turns (seed {})",
-                shortest.turns, shortest.seed
-            ));
+            ui.label(format!("Shortest game: {} turns (seed {})", shortest.turns, shortest.seed));
         }
         if let Some(longest) = &summary.longest_turn_game {
-            ui.label(format!(
-                "Longest game: {} turns (seed {})",
-                longest.turns, longest.seed
-            ));
+            ui.label(format!("Longest game: {} turns (seed {})", longest.turns, longest.seed));
         }
 
         ui.separator();
         ui.label("Death Analysis");
-        egui::Grid::new("arena_death_grid")
-            .num_columns(5)
-            .striped(true)
-            .show(ui, |ui| {
-                ui.label("");
-                ui.label("Starvation");
-                ui.label("Wall");
-                ui.label("Body");
-                ui.label("Head");
-                ui.end_row();
+        egui::Grid::new("arena_death_grid").num_columns(5).striped(true).show(ui, |ui| {
+            ui.label("");
+            ui.label("Starvation");
+            ui.label("Wall");
+            ui.label("Body");
+            ui.label("Head");
+            ui.end_row();
 
-                ui.label("Local");
-                ui.label(summary.death_stats.local.starvation.to_string());
-                ui.label(summary.death_stats.local.wall.to_string());
-                ui.label(summary.death_stats.local.body.to_string());
-                ui.label(summary.death_stats.local.head.to_string());
-                ui.end_row();
+            ui.label("Local");
+            ui.label(summary.death_stats.local.starvation.to_string());
+            ui.label(summary.death_stats.local.wall.to_string());
+            ui.label(summary.death_stats.local.body.to_string());
+            ui.label(summary.death_stats.local.head.to_string());
+            ui.end_row();
 
-                ui.label("Opponent");
-                ui.label(summary.death_stats.opponent.starvation.to_string());
-                ui.label(summary.death_stats.opponent.wall.to_string());
-                ui.label(summary.death_stats.opponent.body.to_string());
-                ui.label(summary.death_stats.opponent.head.to_string());
-                ui.end_row();
-            });
+            ui.label("Opponent");
+            ui.label(summary.death_stats.opponent.starvation.to_string());
+            ui.label(summary.death_stats.opponent.wall.to_string());
+            ui.label(summary.death_stats.opponent.body.to_string());
+            ui.label(summary.death_stats.opponent.head.to_string());
+            ui.end_row();
+        });
 
         ui.separator();
         ui.label("Turn Distribution");
-        egui::Grid::new("arena_turn_dist")
-            .num_columns(3)
-            .striped(true)
-            .show(ui, |ui| {
-                ui.label("Turns");
-                ui.label("Count");
-                ui.label("%");
+        egui::Grid::new("arena_turn_dist").num_columns(3).striped(true).show(ui, |ui| {
+            ui.label("Turns");
+            ui.label("Count");
+            ui.label("%");
+            ui.end_row();
+            for bin in &summary.turn_distribution {
+                ui.label(&bin.label);
+                ui.label(bin.count.to_string());
+                ui.label(format!("{:.2}", bin.percent));
                 ui.end_row();
-                for bin in &summary.turn_distribution {
-                    ui.label(&bin.label);
-                    ui.label(bin.count.to_string());
-                    ui.label(format!("{:.2}", bin.percent));
-                    ui.end_row();
-                }
-            });
+            }
+        });
 
         ui.separator();
         ui.label("Length Distribution");
-        egui::Grid::new("arena_len_dist")
-            .num_columns(5)
-            .striped(true)
-            .show(ui, |ui| {
-                ui.label("Length");
-                ui.label("Local");
-                ui.label("Local %");
-                ui.label("Opponent");
-                ui.label("Opponent %");
+        egui::Grid::new("arena_len_dist").num_columns(5).striped(true).show(ui, |ui| {
+            ui.label("Length");
+            ui.label("Local");
+            ui.label("Local %");
+            ui.label("Opponent");
+            ui.label("Opponent %");
+            ui.end_row();
+            for (local, opponent) in summary
+                .local_length_distribution
+                .iter()
+                .zip(summary.opponent_length_distribution.iter())
+            {
+                ui.label(&local.label);
+                ui.label(local.count.to_string());
+                ui.label(format!("{:.2}", local.percent));
+                ui.label(opponent.count.to_string());
+                ui.label(format!("{:.2}", opponent.percent));
                 ui.end_row();
-                for (local, opponent) in summary
-                    .local_length_distribution
-                    .iter()
-                    .zip(summary.opponent_length_distribution.iter())
-                {
-                    ui.label(&local.label);
-                    ui.label(local.count.to_string());
-                    ui.label(format!("{:.2}", local.percent));
-                    ui.label(opponent.count.to_string());
-                    ui.label(format!("{:.2}", opponent.percent));
-                    ui.end_row();
-                }
-            });
+            }
+        });
 
         if !summary.find_results.is_empty() {
             ui.separator();
             ui.label("Find Results");
             for found in &summary.find_results {
-                ui.label(format!(
-                    "{}: {} (winner: {})",
-                    found.mode_title, found.metric_label, found.winner
-                ));
+                ui.label(format!("{}: {} (winner: {})", found.mode_title, found.metric_label, found.winner));
                 ui.label(format!("Reproduce: {}", found.reproduce_hint));
                 if let Some(resume) = &found.resume_hint {
                     ui.label(format!("Resume: {}", resume));

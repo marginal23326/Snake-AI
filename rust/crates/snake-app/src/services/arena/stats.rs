@@ -1,16 +1,13 @@
 use super::super::common::{DeathReasonCounts, MatchResult};
 use super::types::{
-    ArenaDeathStats, ArenaDistributionBin, ArenaFindResult, ArenaLengthExtreme, ArenaProgress,
-    ArenaSummary, ArenaTurnsExtreme,
+    ArenaDeathStats, ArenaDistributionBin, ArenaFindResult, ArenaLengthExtreme, ArenaProgress, ArenaSummary, ArenaTurnsExtreme,
 };
 
 const TURN_BIN_LABELS: [&str; 11] = [
-    "0-100", "101-200", "201-300", "301-400", "401-500", "501-600", "601-700", "701-800",
-    "801-900", "901-1000", "1000+",
+    "0-100", "101-200", "201-300", "301-400", "401-500", "501-600", "601-700", "701-800", "801-900", "901-1000", "1000+",
 ];
 const LENGTH_BIN_LABELS: [&str; 15] = [
-    "0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", "41-45", "46-50", "51-55",
-    "56-60", "61-65", "66-70", "70+",
+    "0-5", "6-10", "11-15", "16-20", "21-25", "26-30", "31-35", "36-40", "41-45", "46-50", "51-55", "56-60", "61-65", "66-70", "70+",
 ];
 
 #[derive(Debug, Default)]
@@ -49,21 +46,13 @@ impl ArenaAccumulator {
         self.local_length_bins[length_bin_index(result.local_length)] += 1;
         self.opponent_length_bins[length_bin_index(result.opp_length)] += 1;
 
-        if self
-            .shortest_turn_game
-            .as_ref()
-            .is_none_or(|current| result.turns < current.turns)
-        {
+        if self.shortest_turn_game.as_ref().is_none_or(|current| result.turns < current.turns) {
             self.shortest_turn_game = Some(ArenaTurnsExtreme {
                 seed: result.seed,
                 turns: result.turns,
             });
         }
-        if self
-            .longest_turn_game
-            .as_ref()
-            .is_none_or(|current| result.turns > current.turns)
-        {
+        if self.longest_turn_game.as_ref().is_none_or(|current| result.turns > current.turns) {
             self.longest_turn_game = Some(ArenaTurnsExtreme {
                 seed: result.seed,
                 turns: result.turns,
@@ -143,16 +132,8 @@ impl ArenaAccumulator {
             duration_ms,
             death_stats: self.death_stats,
             turn_distribution: build_distribution(&TURN_BIN_LABELS, &self.turn_bins, total_games),
-            local_length_distribution: build_distribution(
-                &LENGTH_BIN_LABELS,
-                &self.local_length_bins,
-                total_games,
-            ),
-            opponent_length_distribution: build_distribution(
-                &LENGTH_BIN_LABELS,
-                &self.opponent_length_bins,
-                total_games,
-            ),
+            local_length_distribution: build_distribution(&LENGTH_BIN_LABELS, &self.local_length_bins, total_games),
+            opponent_length_distribution: build_distribution(&LENGTH_BIN_LABELS, &self.opponent_length_bins, total_games),
             shortest_turn_game: self.shortest_turn_game,
             longest_turn_game: self.longest_turn_game,
             shortest_local_length_game: self.shortest_local_length_game,
@@ -167,18 +148,11 @@ impl ArenaAccumulator {
 }
 
 pub(crate) fn format_death_row(v: &DeathReasonCounts) -> String {
-    format!(
-        "starvation={} wall={} body={} head={}",
-        v.starvation, v.wall, v.body, v.head
-    )
+    format!("starvation={} wall={} body={} head={}", v.starvation, v.wall, v.body, v.head)
 }
 
 fn percent(count: usize, total: usize) -> f64 {
-    if total == 0 {
-        0.0
-    } else {
-        (count as f64 / total as f64) * 100.0
-    }
+    if total == 0 { 0.0 } else { (count as f64 / total as f64) * 100.0 }
 }
 
 fn add_death_counts(target: &mut DeathReasonCounts, source: &DeathReasonCounts) {
@@ -188,11 +162,7 @@ fn add_death_counts(target: &mut DeathReasonCounts, source: &DeathReasonCounts) 
     target.head += source.head;
 }
 
-fn build_distribution(
-    labels: &[&str],
-    counts: &[usize],
-    total_games: usize,
-) -> Vec<ArenaDistributionBin> {
+fn build_distribution(labels: &[&str], counts: &[usize], total_games: usize) -> Vec<ArenaDistributionBin> {
     labels
         .iter()
         .zip(counts.iter())

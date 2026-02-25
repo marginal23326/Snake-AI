@@ -64,18 +64,8 @@ impl Zobrist {
         current_hash ^ self.table[self.idx(x, y)][piece as usize]
     }
 
-    pub fn xor_health(
-        &self,
-        current_hash: u64,
-        old_health: i32,
-        new_health: i32,
-        is_me: bool,
-    ) -> u64 {
-        let table = if is_me {
-            &self.my_health
-        } else {
-            &self.enemy_health
-        };
+    pub fn xor_health(&self, current_hash: u64, old_health: i32, new_health: i32, is_me: bool) -> u64 {
+        let table = if is_me { &self.my_health } else { &self.enemy_health };
         current_hash ^ table[clamp_health(old_health)] ^ table[clamp_health(new_health)]
     }
 }

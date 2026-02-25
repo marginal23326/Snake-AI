@@ -12,12 +12,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub const ALL: [Direction; 4] = [
-        Direction::Up,
-        Direction::Down,
-        Direction::Left,
-        Direction::Right,
-    ];
+    pub const ALL: [Direction; 4] = [Direction::Up, Direction::Down, Direction::Left, Direction::Right];
 
     pub const fn vector(self) -> (i32, i32) {
         match self {

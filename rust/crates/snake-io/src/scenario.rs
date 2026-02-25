@@ -101,10 +101,8 @@ pub fn load_scenarios_from_dir(path: &Path) -> Result<Vec<NamedScenario>> {
 
     let mut out = Vec::with_capacity(files.len());
     for file in files {
-        let raw = fs::read_to_string(&file)
-            .with_context(|| format!("failed to read scenario file {}", file.display()))?;
-        let scenario: ScenarioV2 = serde_json::from_str(&raw)
-            .with_context(|| format!("failed to parse scenario {}", file.display()))?;
+        let raw = fs::read_to_string(&file).with_context(|| format!("failed to read scenario file {}", file.display()))?;
+        let scenario: ScenarioV2 = serde_json::from_str(&raw).with_context(|| format!("failed to parse scenario {}", file.display()))?;
         out.push(NamedScenario { file, scenario });
     }
     Ok(out)

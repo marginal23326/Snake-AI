@@ -46,14 +46,6 @@ impl TranspositionTable {
             return;
         }
 
-        self.map.insert(
-            hash,
-            TtEntry {
-                depth,
-                score,
-                flag,
-                mv,
-            },
-        );
+        self.map.insert(hash, TtEntry { depth, score, flag, mv });
     }
 }

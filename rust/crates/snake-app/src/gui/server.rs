@@ -16,10 +16,7 @@ impl SnakeGuiApp {
         let cfg = self.cfg.clone();
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         let join = thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("runtime");
+            let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().expect("runtime");
             rt.block_on(async move {
                 let _ = run_server_with_shutdown(addr, cfg, async {
                     let _ = rx.await;

@@ -6,8 +6,7 @@ use serde_json::Value;
 use snake_ai::{AgentState, AiConfig, decide_move_debug};
 use snake_api::{ApiFlavor, build_move_payload, normalize_move_name};
 use snake_domain::{
-    Direction, FoodSettings, GameState, LcgRng, Point, SimConfig, Snake, SnakeId,
-    place_initial_standard_food, simulate_turn,
+    Direction, FoodSettings, GameState, LcgRng, Point, SimConfig, Snake, SnakeId, place_initial_standard_food, simulate_turn,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -85,10 +84,7 @@ pub(crate) struct MatchRunOutput {
 fn default_opponent_roster() -> HashMap<&'static str, (&'static str, ApiFlavor)> {
     HashMap::from([
         ("local-old", ("http://localhost:9000", ApiFlavor::Standard)),
-        (
-            "shapeshifter",
-            ("http://localhost:8080", ApiFlavor::Standard),
-        ),
+        ("shapeshifter", ("http://localhost:8080", ApiFlavor::Standard)),
         ("snek-two", ("http://localhost:7000", ApiFlavor::Legacy)),
     ])
 }
@@ -107,18 +103,8 @@ pub fn format_opponent_roster() -> String {
         .collect();
     rows.sort_by(|a, b| a.0.cmp(b.0));
 
-    let name_w = rows
-        .iter()
-        .map(|r| r.0.len())
-        .max()
-        .unwrap_or(4)
-        .max("Name".len());
-    let api_w = rows
-        .iter()
-        .map(|r| r.1.len())
-        .max()
-        .unwrap_or(3)
-        .max("API".len());
+    let name_w = rows.iter().map(|r| r.0.len()).max().unwrap_or(4).max("Name".len());
+    let api_w = rows.iter().map(|r| r.1.len()).max().unwrap_or(3).max("API".len());
 
     let mut out = String::new();
     out.push_str("Available opponents:\n");
@@ -151,12 +137,7 @@ pub fn format_opponent_roster() -> String {
     out
 }
 
-pub(crate) fn resolve_opponent(
-    opponent: &str,
-    self_play: bool,
-    fallback_cfg: &AiConfig,
-    flavor: ApiFlavor,
-) -> OpponentMode {
+pub(crate) fn resolve_opponent(opponent: &str, self_play: bool, fallback_cfg: &AiConfig, flavor: ApiFlavor) -> OpponentMode {
     if self_play {
         return OpponentMode::Local(fallback_cfg.clone());
     }
@@ -198,11 +179,7 @@ fn build_initial_state(width: i32, height: i32, seed: u32) -> (GameState, LcgRng
                 Snake::new(
                     "s1",
                     "local",
-                    vec![
-                        Point { x: pad, y: pad },
-                        Point { x: pad, y: pad - 1 },
-                        Point { x: pad, y: pad - 2 },
-                    ],
+                    vec![Point { x: pad, y: pad }, Point { x: pad, y: pad - 1 }, Point { x: pad, y: pad - 2 }],
                     100,
                 ),
                 Snake::new(
@@ -271,13 +248,7 @@ fn extract_agent_pair(state: &GameState, snake_id: &str) -> (AgentState, AgentSt
     )
 }
 
-async fn request_http_move(
-    client: &Client,
-    url: &str,
-    state: &GameState,
-    snake_id: &str,
-    flavor: ApiFlavor,
-) -> Direction {
+async fn request_http_move(client: &Client, url: &str, state: &GameState, snake_id: &str, flavor: ApiFlavor) -> Direction {
     let payload = match build_move_payload(state, snake_id, flavor, "rust-arena") {
         Ok(v) => v,
         Err(_) => return Direction::Up,
@@ -295,21 +266,10 @@ async fn request_http_move(
         .unwrap_or(Direction::Up)
 }
 
-pub(crate) async fn run_single_match(
-    seed: u32,
-    cfg: &AiConfig,
-    opponent: &OpponentMode,
-    match_cfg: &MatchRunConfig,
-) -> MatchResult {
-    run_single_match_with_options(
-        seed,
-        cfg,
-        opponent,
-        match_cfg,
-        MatchRuntimeOptions::default(),
-    )
-    .await
-    .result
+pub(crate) async fn run_single_match(seed: u32, cfg: &AiConfig, opponent: &OpponentMode, match_cfg: &MatchRunConfig) -> MatchResult {
+    run_single_match_with_options(seed, cfg, opponent, match_cfg, MatchRuntimeOptions::default())
+        .await
+        .result
 }
 
 pub(crate) async fn run_single_match_with_options(
@@ -330,21 +290,14 @@ pub(crate) async fn run_single_match_with_options(
     let mut death = MatchDeathSummary::default();
     let mut trace = options.capture_trace.then(Vec::new);
     let client = Client::builder()
-        .timeout(std::time::Duration::from_millis(
-            match_cfg.request_timeout_ms,
-        ))
+        .timeout(std::time::Duration::from_millis(match_cfg.request_timeout_ms))
         .build()
         .expect("client build");
 
     let sim_cfg = SimConfig::default();
 
     while state.turn < match_cfg.max_turns {
-        let alive = state
-            .board
-            .snakes
-            .iter()
-            .filter(|s| s.alive && !s.body.is_empty())
-            .count();
+        let alive = state.board.snakes.iter().filter(|s| s.alive && !s.body.is_empty()).count();
         if alive <= 1 {
             break;
         }
@@ -376,9 +329,7 @@ pub(crate) async fn run_single_match_with_options(
                     )
                     .best_move
                 }
-                OpponentMode::Http { url, flavor } => {
-                    request_http_move(&client, url, &state, "s2", *flavor).await
-                }
+                OpponentMode::Http { url, flavor } => request_http_move(&client, url, &state, "s2", *flavor).await,
             }
         };
 
@@ -390,10 +341,7 @@ pub(crate) async fn run_single_match_with_options(
             });
         }
 
-        let intents = vec![
-            (SnakeId("s1".to_owned()), dir_s1),
-            (SnakeId("s2".to_owned()), dir_s2),
-        ];
+        let intents = vec![(SnakeId("s1".to_owned()), dir_s1), (SnakeId("s2".to_owned()), dir_s2)];
         let turn_summary = simulate_turn(&mut state, &intents, &mut rng, sim_cfg);
         for event in &turn_summary.dead {
             match event.snake_id.0.as_str() {

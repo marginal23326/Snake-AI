@@ -41,12 +41,7 @@ pub struct Snake {
 
 impl Snake {
     #[inline]
-    pub fn new(
-        id: impl Into<SnakeId>,
-        name: impl Into<String>,
-        body: Vec<Point>,
-        health: i32,
-    ) -> Self {
+    pub fn new(id: impl Into<SnakeId>, name: impl Into<String>, body: Vec<Point>, health: i32) -> Self {
         Self {
             id: id.into(),
             name: name.into(),

@@ -23,11 +23,7 @@ pub async fn run_server(addr: SocketAddr, config: AiConfig) -> Result<()> {
     run_server_with_shutdown(addr, config, async { std::future::pending::<()>().await }).await
 }
 
-pub async fn run_server_with_shutdown<F>(
-    addr: SocketAddr,
-    config: AiConfig,
-    shutdown: F,
-) -> Result<()>
+pub async fn run_server_with_shutdown<F>(addr: SocketAddr, config: AiConfig, shutdown: F) -> Result<()>
 where
     F: std::future::Future<Output = ()> + Send + 'static,
 {
@@ -45,9 +41,7 @@ where
 
     let listener = TcpListener::bind(addr).await?;
     info!("Rust snake server listening on {}", addr);
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
+    axum::serve(listener, app).with_graceful_shutdown(shutdown).await?;
     Ok(())
 }
 
@@ -60,10 +54,7 @@ async fn handle_get_config(State(state): State<ServerState>) -> impl IntoRespons
     Json(json!(cfg))
 }
 
-async fn handle_configure(
-    State(state): State<ServerState>,
-    Json(update): Json<Value>,
-) -> impl IntoResponse {
+async fn handle_configure(State(state): State<ServerState>, Json(update): Json<Value>) -> impl IntoResponse {
     let mut cfg_guard = state.config.write().await;
     let mut current = serde_json::to_value(cfg_guard.clone()).unwrap_or_else(|_| json!({}));
     merge_json(&mut current, &update);
@@ -72,10 +63,7 @@ async fn handle_configure(
     Json(json!({ "status": "ok", "config": next }))
 }
 
-async fn handle_move(
-    State(state): State<ServerState>,
-    Json(body): Json<Value>,
-) -> impl IntoResponse {
+async fn handle_move(State(state): State<ServerState>, Json(body): Json<Value>) -> impl IntoResponse {
     let parsed = match parse_move_request(&body) {
         Ok(v) => v,
         Err(_) => {
@@ -83,16 +71,8 @@ async fn handle_move(
         }
     };
 
-    let you = parsed
-        .snakes
-        .iter()
-        .find(|s| s.id.0 == parsed.you_id)
-        .cloned();
-    let enemy = parsed
-        .snakes
-        .iter()
-        .find(|s| s.id.0 != parsed.you_id)
-        .cloned();
+    let you = parsed.snakes.iter().find(|s| s.id.0 == parsed.you_id).cloned();
+    let enemy = parsed.snakes.iter().find(|s| s.id.0 != parsed.you_id).cloned();
     let Some(you) = you else {
         return Json(json!({ "move": "up" }));
     };

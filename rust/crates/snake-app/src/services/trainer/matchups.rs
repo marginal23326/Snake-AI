@@ -11,10 +11,7 @@ pub(super) struct TrainerMatchup {
     pub games: usize,
 }
 
-pub(super) fn build_trainer_matchups(
-    base_cfg: &AiConfig,
-    options: &TrainerOptions,
-) -> Vec<TrainerMatchup> {
+pub(super) fn build_trainer_matchups(base_cfg: &AiConfig, options: &TrainerOptions) -> Vec<TrainerMatchup> {
     let mut targets = if options.opponents.is_empty() {
         vec!["local-old".to_owned()]
     } else {

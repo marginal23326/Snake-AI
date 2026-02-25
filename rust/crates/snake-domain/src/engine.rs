@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    Direction, FoodSettings, GameState, Point, RngSource, Snake, SnakeId,
-    apply_standard_food_spawning,
-};
+use crate::{Direction, FoodSettings, GameState, Point, RngSource, Snake, SnakeId, apply_standard_food_spawning};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SimConfig {
@@ -35,12 +32,7 @@ pub struct TurnSummary {
     pub alive_ids: Vec<SnakeId>,
 }
 
-pub fn simulate_turn<R: RngSource>(
-    state: &mut GameState,
-    intents: &[(SnakeId, Direction)],
-    rng: &mut R,
-    cfg: SimConfig,
-) -> TurnSummary {
+pub fn simulate_turn<R: RngSource>(state: &mut GameState, intents: &[(SnakeId, Direction)], rng: &mut R, cfg: SimConfig) -> TurnSummary {
     let mut intent_map = HashMap::new();
     for (id, dir) in intents {
         intent_map.insert(id.0.clone(), *dir);
@@ -55,19 +47,11 @@ pub fn simulate_turn<R: RngSource>(
             continue;
         }
 
-        let dir = intent_map
-            .get(&snake.id.0)
-            .copied()
-            .unwrap_or(Direction::Up);
+        let dir = intent_map.get(&snake.id.0).copied().unwrap_or(Direction::Up);
         let head = snake.body[0].moved(dir);
         snake.body.insert(0, head);
 
-        if let Some(food_idx) = state
-            .board
-            .food
-            .iter()
-            .position(|f| f.x == head.x && f.y == head.y)
-        {
+        if let Some(food_idx) = state.board.food.iter().position(|f| f.x == head.x && f.y == head.y) {
             state.board.food.remove(food_idx);
             snake.health = cfg.max_health;
         } else {
@@ -133,10 +117,7 @@ pub fn simulate_turn<R: RngSource>(
                 continue;
             }
             let other_head = other.body[0];
-            if other_head.x == head.x
-                && other_head.y == head.y
-                && snake.body.len() <= other.body.len()
-            {
+            if other_head.x == head.x && other_head.y == head.y && snake.body.len() <= other.body.len() {
                 head_hit = true;
                 break;
             }
@@ -150,10 +131,7 @@ pub fn simulate_turn<R: RngSource>(
     }
 
     if !dead.is_empty() {
-        let dead_ids: HashMap<String, &str> = dead
-            .iter()
-            .map(|d| (d.snake_id.0.clone(), d.reason.as_str()))
-            .collect();
+        let dead_ids: HashMap<String, &str> = dead.iter().map(|d| (d.snake_id.0.clone(), d.reason.as_str())).collect();
         for snake in &mut state.board.snakes {
             if dead_ids.contains_key(&snake.id.0) {
                 snake.alive = false;

@@ -42,16 +42,9 @@ pub struct RegressionSummary {
     pub duration_ms: u128,
 }
 
-pub fn run_regression_suite(
-    mut cfg: AiConfig,
-    options: RegressionOptions,
-) -> Result<RegressionSummary> {
-    let scenarios = load_scenarios_from_dir(&options.scenario_dir).with_context(|| {
-        format!(
-            "failed to load scenarios from {}",
-            options.scenario_dir.display()
-        )
-    })?;
+pub fn run_regression_suite(mut cfg: AiConfig, options: RegressionOptions) -> Result<RegressionSummary> {
+    let scenarios = load_scenarios_from_dir(&options.scenario_dir)
+        .with_context(|| format!("failed to load scenarios from {}", options.scenario_dir.display()))?;
     let depths = if options.depths.is_empty() {
         vec![cfg.max_depth]
     } else {
@@ -72,11 +65,7 @@ pub fn run_regression_suite(
         println!(
             "\nRUNNING RUST REGRESSION SUITE ({} scenarios)\nDepths: {}\n",
             scenarios.len(),
-            depths
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
+            depths.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(", ")
         );
     }
 

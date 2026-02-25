@@ -22,8 +22,7 @@ pub(super) async fn evaluate_candidate_with_matchups(
 
     for matchup in matchups {
         for _ in 0..matchup.games {
-            let result =
-                run_single_match(next_seed, &candidate_cfg, &matchup.opponent, &match_cfg).await;
+            let result = run_single_match(next_seed, &candidate_cfg, &matchup.opponent, &match_cfg).await;
             next_seed = next_seed.wrapping_add(1);
 
             match result.winner.as_str() {

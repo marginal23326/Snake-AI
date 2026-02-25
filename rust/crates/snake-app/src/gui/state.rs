@@ -9,10 +9,7 @@ use snake_ai::AiConfig;
 use snake_domain::{Direction, GameState, LcgRng};
 use tokio::sync::oneshot;
 
-use crate::services::{
-    ArenaProgress, ArenaSummary, RegressionSummary, TrainerSummary, build_playground_state,
-    default_scenario_dir,
-};
+use crate::services::{ArenaProgress, ArenaSummary, RegressionSummary, TrainerSummary, build_playground_state, default_scenario_dir};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Tab {

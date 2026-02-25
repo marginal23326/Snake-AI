@@ -6,7 +6,7 @@ use crate::{
     config::AiConfig,
     floodfill::flood_fill,
     grid::Grid,
-    model::{AgentState, SearchState},
+    model::{AgentState, SearchBuffers, SearchState},
     pathfinding::get_food_distance_map,
     search::{RootChildRecord, negamax},
     tt::{TranspositionTable, TtMove},
@@ -21,7 +21,7 @@ pub struct Decision {
     pub root_children: Vec<RootChildRecord>,
 }
 
-fn fallback_move(grid: &Grid, me: &AgentState) -> Direction {
+fn fallback_move(grid: &Grid, me: &AgentState, buffers: &mut SearchBuffers) -> Direction {
     if me.body.is_empty() {
         return Direction::Up;
     }
@@ -36,7 +36,7 @@ fn fallback_move(grid: &Grid, me: &AgentState) -> Direction {
     let mut candidates = Vec::new();
     for (x, y, dir) in neighbors {
         if grid.is_safe(x, y) {
-            let ff = flood_fill(grid, x, y, 100, None);
+            let ff = flood_fill(grid, x, y, 100, None, buffers);
             candidates.push((ff.count, dir));
         }
     }
@@ -44,14 +44,9 @@ fn fallback_move(grid: &Grid, me: &AgentState) -> Direction {
     candidates.first().map(|c| c.1).unwrap_or(Direction::Up)
 }
 
-pub fn decide_move_debug(
-    me: AgentState,
-    enemy: AgentState,
-    foods: Vec<Point>,
-    cols: i32,
-    rows: i32,
-    cfg: &AiConfig,
-) -> Decision {
+pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, cols: i32, rows: i32, cfg: &AiConfig) -> Decision {
+    crate::PERF_STATS.with(|s| *s.borrow_mut() = crate::PerfStats::default());
+
     let started = Instant::now();
     let mut grid = Grid::from_state(cols, rows, &foods, &me.body, &enemy.body);
 
@@ -68,15 +63,17 @@ pub fn decide_move_debug(
     let zobrist = Zobrist::new(cols, rows);
     let initial_hash = zobrist.compute_hash(&grid, state.me.health, state.enemy.health);
     let mut tt = TranspositionTable::default();
-    let mut history_table = [
-        vec![0i32; (cols * rows * 4) as usize],
-        vec![0i32; (cols * rows * 4) as usize],
-    ];
+    let mut history_table = [vec![0i32; (cols * rows * 4) as usize], vec![0i32; (cols * rows * 4) as usize]];
     tt.clear();
+
+    let mut buffers = SearchBuffers::new((cols * rows) as usize);
 
     let result = negamax(
         &mut grid,
-        &state,
+        &state.me,
+        &state.enemy,
+        &state.food,
+        state.dist_map.as_deref(),
         cfg.max_depth,
         f64::NEG_INFINITY,
         f64::INFINITY,
@@ -88,17 +85,34 @@ pub fn decide_move_debug(
         &mut tt,
         &zobrist,
         0,
+        &mut buffers,
     );
 
     let selected = result
         .mv
         .map(|m: TtMove| m.dir)
-        .unwrap_or_else(|| fallback_move(&grid, &state.me));
+        .unwrap_or_else(|| fallback_move(&grid, &state.me, &mut buffers));
+
     let mut log = format!("Score: {}", result.score.floor() as i64);
     if result.mv.is_none() {
         log.push_str(" | FAILSAFE");
     }
-    log.push_str(&format!(" | {}ms", started.elapsed().as_millis()));
+    let elapsed = started.elapsed();
+    log.push_str(&format!(" | {}ms", elapsed.as_millis()));
+
+    crate::PERF_STATS.with(|s| {
+        let st = s.borrow();
+        println!("=== AI TURN PROFILING ===");
+        println!("Total search time: {:?}", elapsed);
+        println!("Nodes (negamax calls): {}", st.negamax_calls);
+        println!("Eval: {:>8} calls, {:?}", st.eval_calls, st.eval_duration);
+        println!("Voronoi: {:>8} calls, {:?}", st.voronoi_calls, st.voronoi_duration);
+        println!("Floodfill: {:>8} calls, {:?}", st.floodfill_calls, st.floodfill_duration);
+        println!("MoveGen: {:>8} calls, {:?}", st.move_gen_calls, st.move_gen_duration);
+        println!("DistMap: {:>8} calls, {:?}", st.distmap_calls, st.distmap_duration);
+        println!("ShortDist: {:>8} calls, {:?}", st.shortest_dist_calls, st.shortest_dist_duration);
+        println!("=========================\n");
+    });
 
     Decision {
         best_move: selected,

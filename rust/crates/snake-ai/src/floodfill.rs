@@ -1,6 +1,5 @@
+use crate::{grid::Grid, model::SearchBuffers};
 use snake_domain::Point;
-
-use crate::grid::Grid;
 
 #[derive(Debug, Clone, Copy)]
 pub struct FloodFillResult {
@@ -15,6 +14,25 @@ pub fn flood_fill(
     start_y: i32,
     max_depth: i32,
     snake_body: Option<&[Point]>,
+    buffers: &mut SearchBuffers,
+) -> FloodFillResult {
+    let start = std::time::Instant::now();
+    let res = flood_fill_inner(grid, start_x, start_y, max_depth, snake_body, buffers);
+    crate::PERF_STATS.with(|s| {
+        let mut st = s.borrow_mut();
+        st.floodfill_calls += 1;
+        st.floodfill_duration += start.elapsed();
+    });
+    res
+}
+
+fn flood_fill_inner(
+    grid: &Grid,
+    start_x: i32,
+    start_y: i32,
+    max_depth: i32,
+    snake_body: Option<&[Point]>,
+    buffers: &mut SearchBuffers,
 ) -> FloodFillResult {
     if start_x < 0 || start_y < 0 || start_x >= grid.width || start_y >= grid.height {
         return FloodFillResult {
@@ -24,57 +42,71 @@ pub fn flood_fill(
         };
     }
 
-    let size = (grid.width * grid.height) as usize;
-    let mut visited = vec![false; size];
-    let mut queue = Vec::with_capacity(size);
-    let mut body_map = vec![-1i32; size];
+    buffers.ensure_adj(grid.width, grid.height);
+    let generation = buffers.next_gen();
+    let queue = &mut buffers.ff_queue;
+    queue.clear();
 
+    let width = grid.width;
+    let cells = &grid.cells;
+
+    let ff_gen = &mut buffers.ff_gen;
+    let body_gen = &mut buffers.ff_body_gen;
+    let body_map = &mut buffers.ff_body_map;
+
+    let mut body_len = 0;
     if let Some(body) = snake_body {
+        body_len = body.len() as i32;
         for (i, part) in body.iter().enumerate() {
-            if part.x >= 0 && part.x < grid.width && part.y >= 0 && part.y < grid.height {
-                body_map[grid.idx(part.x, part.y)] = i as i32;
+            if part.x >= 0 && part.x < width && part.y >= 0 && part.y < grid.height {
+                let idx = (part.y * width + part.x) as usize;
+                body_gen[idx] = generation;
+                body_map[idx] = i as i32;
             }
         }
     }
 
-    let start_idx = grid.idx(start_x, start_y);
-    visited[start_idx] = true;
-    queue.push((start_x, start_y));
+    let start_idx = (start_y * width + start_x) as usize;
+    ff_gen[start_idx] = generation;
+    queue.push(start_idx as u32);
 
     let mut count = 1;
     let mut min_turns_to_clear = i32::MAX;
     let mut has_food = false;
     let mut head = 0usize;
 
+    let adj_len = &buffers.adj_len;
+    let adj_list = &buffers.adj_list;
+
     while head < queue.len() && count < max_depth {
-        let (cx, cy) = queue[head];
+        let curr_idx = unsafe { *queue.get_unchecked(head) } as usize;
         head += 1;
 
-        if !has_food && grid.get(cx, cy) == 1 {
+        if !has_food && unsafe { *cells.get_unchecked(curr_idx) } == 1 {
             has_food = true;
         }
 
-        let neighbors = [(cx, cy - 1), (cx, cy + 1), (cx - 1, cy), (cx + 1, cy)];
-        for (nx, ny) in neighbors {
-            if nx < 0 || ny < 0 || nx >= grid.width || ny >= grid.height {
-                continue;
-            }
-            let idx = grid.idx(nx, ny);
-            if visited[idx] {
-                continue;
-            }
+        let len = unsafe { *adj_len.get_unchecked(curr_idx) };
+        let neighbors = unsafe { adj_list.get_unchecked(curr_idx) };
 
-            let cell = grid.cells[idx];
-            if cell == 0 || cell == 1 {
-                visited[idx] = true;
-                queue.push((nx, ny));
-                count += 1;
-            } else if let Some(body) = snake_body {
-                let body_index = body_map[idx];
-                if body_index != -1 {
-                    let turns = body.len() as i32 - body_index;
+        for i in 0..len {
+            let n_idx = unsafe { *neighbors.get_unchecked(i) };
+
+            if unsafe { *ff_gen.get_unchecked(n_idx) } != generation {
+                let cell = unsafe { *cells.get_unchecked(n_idx) };
+                if cell <= 1 {
+                    unsafe {
+                        *ff_gen.get_unchecked_mut(n_idx) = generation;
+                    }
+                    queue.push(n_idx as u32);
+                    count += 1;
+                } else if snake_body.is_some() && unsafe { *body_gen.get_unchecked(n_idx) } == generation {
+                    let b_idx = unsafe { *body_map.get_unchecked(n_idx) };
+                    let turns = body_len - b_idx;
                     min_turns_to_clear = min_turns_to_clear.min(turns);
-                    visited[idx] = true;
+                    unsafe {
+                        *ff_gen.get_unchecked_mut(n_idx) = generation;
+                    }
                 }
             }
         }

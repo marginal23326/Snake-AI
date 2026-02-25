@@ -19,19 +19,13 @@ use crate::{
     gui::run_gui,
     server::run_server,
     services::{
-        ArenaOptions, RegressionOptions, TrainerOptions, default_scenario_dir,
-        format_arena_progress_line, format_arena_summary_report, format_opponent_roster,
-        parse_arena_find_modes, parse_depths, run_arena_with_progress, run_regression_suite,
-        run_trainer,
+        ArenaOptions, RegressionOptions, TrainerOptions, default_scenario_dir, format_arena_progress_line, format_arena_summary_report,
+        format_opponent_roster, parse_arena_find_modes, parse_depths, run_arena_with_progress, run_regression_suite, run_trainer,
     },
 };
 
 #[derive(Debug, Parser)]
-#[command(
-    name = "snake-app",
-    version,
-    about = "Snake Lab Rust: GUI + CLI runners"
-)]
+#[command(name = "snake-app", version, about = "Snake Lab Rust: GUI + CLI runners")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -65,9 +59,7 @@ struct TestCliArgs {
 
 impl TestCliArgs {
     fn into_runtime(self, rust_root: &Path) -> RegressionOptions {
-        let scenario_dir = self
-            .scenario_dir
-            .unwrap_or_else(|| default_scenario_dir(rust_root));
+        let scenario_dir = self.scenario_dir.unwrap_or_else(|| default_scenario_dir(rust_root));
         RegressionOptions {
             scenario_dir,
             depths: parse_depths(&self.depths),
@@ -115,12 +107,7 @@ struct ArenaCliArgs {
         default_value_t = ArenaOptions::DEFAULT_RESUME
     )]
     resume: bool,
-    #[arg(
-        long = "snapshot-file",
-        short = 'R',
-        alias = "resume-file",
-        alias = "snapshotFile"
-    )]
+    #[arg(long = "snapshot-file", short = 'R', alias = "resume-file", alias = "snapshotFile")]
     snapshot_file: Option<PathBuf>,
     #[arg(
         long = "snapshot-ticks",
@@ -333,20 +320,14 @@ impl TrainerCliArgs {
             mut_strength: self.mut_strength,
             tourney: self.tourney,
             seed: self.seed,
-            save: self
-                .save
-                .or_else(|| Some(rust_root.join("data").join("ga_results.json"))),
+            save: self.save.or_else(|| Some(rust_root.join("data").join("ga_results.json"))),
             opponents: if self.opponent.is_empty() {
                 vec![TrainerOptions::DEFAULT_OPPONENT.to_owned()]
             } else {
                 self.opponent
             },
             only_http: boolish(self.only_http),
-            http_games: if http_games_raw == 0 {
-                games
-            } else {
-                http_games_raw
-            },
+            http_games: if http_games_raw == 0 { games } else { http_games_raw },
             self_play: boolish(self.self_play),
             self_games: self.self_games,
             self_every: self.self_every,
@@ -405,9 +386,7 @@ fn main() -> Result<()> {
         Command::Gui => run_gui()?,
         Command::Server { host, port } => {
             let addr = SocketAddr::from_str(&format!("{host}:{port}"))?;
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?;
+            let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             rt.block_on(run_server(addr, base_cfg))?;
         }
         Command::Test(args) => {
@@ -421,9 +400,7 @@ fn main() -> Result<()> {
         Command::Arena(args) => {
             let rust_root = rust_root();
             let options = args.into_runtime(&rust_root);
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?;
+            let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             let summary = rt.block_on(run_arena_with_progress(base_cfg, options, |progress| {
                 print!("\r{}", format_arena_progress_line(&progress));
                 let _ = io::stdout().flush();
@@ -439,9 +416,7 @@ fn main() -> Result<()> {
 
             let rust_root = rust_root();
             let (cfg, options) = args.into_runtime(base_cfg, &rust_root);
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?;
+            let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             let summary = rt.block_on(run_trainer(cfg, options))?;
             println!(
                 "Trainer summary: best_fitness={:.3} generation={}",

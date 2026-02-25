@@ -28,10 +28,7 @@ impl LcgRng {
 
 impl RngSource for LcgRng {
     fn next_u32(&mut self) -> u32 {
-        self.state = self
-            .state
-            .wrapping_mul(1_664_525)
-            .wrapping_add(1_013_904_223);
+        self.state = self.state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         self.state
     }
 }
