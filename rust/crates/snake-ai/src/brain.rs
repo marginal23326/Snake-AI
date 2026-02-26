@@ -111,7 +111,7 @@ pub fn decide_move_debug(
 
     let mut grid = Grid::from_state(cols, rows, &foods, &me.body, &enemy.body);
 
-    let dist_map_vec = get_food_distance_map(&grid, &foods);
+    let dist_map_vec = get_food_distance_map(&grid);
 
     let (selected, score, root_children) = BRAIN_MEM.with(|mem_cell| {
         let mut mem_ref = mem_cell.borrow_mut();
