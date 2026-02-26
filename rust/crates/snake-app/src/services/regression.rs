@@ -96,6 +96,13 @@ pub fn run_regression_suite(mut cfg: AiConfig, options: RegressionOptions) -> Re
             } else {
                 failed += 1;
                 if !options.quiet || options.quiet_fail_only {
+                    println!("DEBUG: Root Moves for {}:", file_name);
+                    for child in &decision.root_children {
+                        println!(
+                            "  - {:?}: Score: {:.2}, Recursive: {:.2}, Penalty: {:.2}, Ate: {}",
+                            child.mv.dir, child.modified_score, child.raw_recursion_score, child.collision_penalty, child.ate
+                        );
+                    }
                     println!(
                         "{} {file_name}: expected {}, got {}.",
                         colorize_red("FAIL"),

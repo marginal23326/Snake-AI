@@ -77,39 +77,38 @@ fn evaluate_inner(
     score += (voronoi.my_count - voronoi.enemy_count) as f64 * cfg.scores.territory_control;
 
     let mut i_am_in_death_trap = false;
-    if voronoi.my_count < me.body.len() as i32 {
-        let ff = flood_fill(grid, my_head.x, my_head.y, me.body.len() as i32 + 2, Some(&me.body), buffers);
-        let physical_space = ff.count;
-        let adjusted_escape_time = ff.min_turns_to_clear + if ff.has_food { 1 } else { 0 };
-        let future_len = me.body.len() as i32 + if ff.has_food { 1 } else { 0 };
+    let my_len = me.body.len() as i32;
 
-        let trapped = physical_space < future_len && physical_space < adjusted_escape_time;
-        if trapped {
+    if voronoi.my_count < my_len {
+        let ff = flood_fill(grid, my_head.x, my_head.y, my_len + 2, Some(&me.body), Some(&enemy.body), buffers);
+        let food_mod = if ff.has_food { 1 } else { 0 };
+        let escape_time = ff.min_turns_to_clear.saturating_add(food_mod);
+        let future_len = my_len + food_mod;
+
+        if ff.count < future_len && ff.count < escape_time {
             i_am_in_death_trap = true;
-            score += if dense_tail_race {
-                cfg.scores.trap_danger * 0.001
-            } else {
-                cfg.scores.trap_danger
-            };
-        } else if physical_space >= future_len {
+            score += cfg.scores.trap_danger * if dense_tail_race { 0.001 } else { 1.0 };
+        } else if ff.count >= future_len {
             score += cfg.scores.strategic_squeeze;
+        } else {
+            score -= escape_time as f64 * cfg.scores.territory_control * 2.0;
         }
-    } else if voronoi.my_count < ((grid.width * grid.height) as f64 * 0.2) as i32 {
+    } else if (voronoi.my_count as f64) < (grid.width * grid.height) as f64 * 0.2 {
         score += cfg.scores.tight_spot;
     }
 
     if !i_am_in_death_trap && voronoi.enemy_count < enemy.body.len() as i32 {
         let en_head = enemy.body[0];
-        let en_ff = flood_fill(grid, en_head.x, en_head.y, enemy.body.len() as i32 + 2, Some(&enemy.body), buffers);
-        let en_space = en_ff.count;
-        let en_escape = en_ff.min_turns_to_clear;
-        let en_future_len = enemy.body.len() as i32 + if en_ff.has_food { 1 } else { 0 };
-        if en_space < en_future_len && en_space < en_escape {
-            score += if dense_tail_race {
-                cfg.scores.enemy_trapped * 0.001
-            } else {
-                cfg.scores.enemy_trapped
-            };
+        let en_len = enemy.body.len() as i32;
+        let ff = flood_fill(grid, en_head.x, en_head.y, en_len + 2, Some(&enemy.body), Some(&me.body), buffers);
+        let food_mod = if ff.has_food { 1 } else { 0 };
+        let escape_time = ff.min_turns_to_clear.saturating_add(food_mod);
+        let future_len = en_len + food_mod;
+
+        if ff.count < future_len && ff.count < escape_time {
+            score += cfg.scores.enemy_trapped * if dense_tail_race { 0.001 } else { 1.0 };
+        } else if ff.count < future_len {
+            score += escape_time as f64 * cfg.scores.territory_control * 2.0;
         }
     }
 

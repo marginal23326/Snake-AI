@@ -12,7 +12,6 @@ pub struct Zobrist {
 impl Zobrist {
     pub fn new(width: i32, height: i32) -> Self {
         let mut seed = 0x9E37_79B9_7F4A_7C15u64 ^ ((width as u64) << 32) ^ ((height as u64) << 8);
-
         let size = (width * height) as usize;
         let mut table = vec![[0u64; 4]; size];
         for slot in &mut table {
@@ -20,14 +19,12 @@ impl Zobrist {
             slot[2] = splitmix64(&mut seed);
             slot[3] = splitmix64(&mut seed);
         }
-
         let mut my_health = [0u64; 101];
         let mut enemy_health = [0u64; 101];
         for i in 0..=100 {
             my_health[i] = splitmix64(&mut seed);
             enemy_health[i] = splitmix64(&mut seed);
         }
-
         Self {
             width,
             height,
@@ -37,40 +34,46 @@ impl Zobrist {
         }
     }
 
-    #[inline]
-    fn idx(&self, x: i32, y: i32) -> usize {
-        (y * self.width + x) as usize
-    }
-
     pub fn compute_hash(&self, grid: &Grid, my_health: i32, enemy_health: i32) -> u64 {
         let mut h = 0u64;
-        for y in 0..grid.height {
-            for x in 0..grid.width {
-                let piece = grid.get(x, y);
-                if (1..=3).contains(&piece) {
-                    h ^= self.table[self.idx(x, y)][piece as usize];
+
+        let mut xor_bits = |bb: crate::bitboard::BitBoard, piece: usize| {
+            for i in 0..7 {
+                let mut val = bb.0[i];
+                while val != 0 {
+                    let bit = val.trailing_zeros();
+                    h ^= self.table[(i << 6) | (bit as usize)][piece];
+                    val &= val - 1;
                 }
             }
-        }
+        };
+
+        xor_bits(grid.food, 1);
+        xor_bits(grid.my_body, 2);
+        xor_bits(grid.enemy_body, 3);
+
         h ^= self.my_health[clamp_health(my_health)];
         h ^= self.enemy_health[clamp_health(enemy_health)];
         h
     }
 
+    #[inline(always)]
     pub fn xor(&self, current_hash: u64, x: i32, y: i32, piece: i8) -> u64 {
         if !(1..=3).contains(&piece) || x < 0 || y < 0 || x >= self.width || y >= self.height {
             return current_hash;
         }
-        current_hash ^ self.table[self.idx(x, y)][piece as usize]
+        let idx = (y * self.width + x) as usize;
+        current_hash ^ self.table[idx][piece as usize]
     }
 
+    #[inline(always)]
     pub fn xor_health(&self, current_hash: u64, old_health: i32, new_health: i32, is_me: bool) -> u64 {
         let table = if is_me { &self.my_health } else { &self.enemy_health };
         current_hash ^ table[clamp_health(old_health)] ^ table[clamp_health(new_health)]
     }
 }
 
-#[inline]
+#[inline(always)]
 fn clamp_health(v: i32) -> usize {
     v.clamp(0, 100) as usize
 }

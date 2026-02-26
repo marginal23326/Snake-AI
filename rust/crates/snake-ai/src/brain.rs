@@ -33,7 +33,7 @@ struct BrainMemory {
 impl BrainMemory {
     fn new() -> Self {
         Self {
-            tt: TranspositionTable::new(1 << 20), 
+            tt: TranspositionTable::new(1 << 20),
             history: [vec![], vec![]],
             buffers: SearchBuffers::new(0),
             zobrist: None,
@@ -44,7 +44,7 @@ impl BrainMemory {
     fn prepare(&mut self, cols: i32, rows: i32, depth: usize) {
         let size = (cols * rows) as usize;
         let used_history = size * 4;
-        
+
         if size > self.max_grid {
             self.history = [vec![0; used_history], vec![0; used_history]];
             self.buffers = SearchBuffers::new(size);
@@ -89,7 +89,7 @@ fn fallback_move(grid: &Grid, me: &AgentState, buffers: &mut SearchBuffers) -> D
     let mut candidates = Vec::new();
     for (x, y, dir) in neighbors {
         if grid.is_safe(x, y) {
-            let ff = flood_fill(grid, x, y, 100, None, buffers);
+            let ff = flood_fill(grid, x, y, 100, None, None, buffers);
             candidates.push((ff.count, dir));
         }
     }
@@ -118,7 +118,13 @@ pub fn decide_move_debug(
 
         let initial_hash = mem_ref.zobrist.as_ref().unwrap().compute_hash(&grid, me.health, enemy.health);
 
-        let BrainMemory { ref mut history, ref mut tt, ref mut buffers, ref zobrist, .. } = *mem_ref;
+        let BrainMemory {
+            ref mut history,
+            ref mut tt,
+            ref mut buffers,
+            ref zobrist,
+            ..
+        } = *mem_ref;
         let zobrist_ref = zobrist.as_ref().unwrap();
 
         let result = negamax(

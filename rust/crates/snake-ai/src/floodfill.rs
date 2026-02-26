@@ -1,4 +1,6 @@
-use crate::{grid::Grid, model::SearchBuffers};
+use crate::bitboard::BitBoard;
+use crate::grid::Grid;
+use crate::model::SearchBuffers;
 use snake_domain::Point;
 
 #[derive(Debug, Clone, Copy)]
@@ -13,11 +15,12 @@ pub fn flood_fill(
     start_x: i32,
     start_y: i32,
     max_depth: i32,
-    snake_body: Option<&[Point]>,
-    buffers: &mut SearchBuffers,
+    my_body: Option<&[Point]>,
+    enemy_body: Option<&[Point]>,
+    _buffers: &mut SearchBuffers,
 ) -> FloodFillResult {
     let start = std::time::Instant::now();
-    let res = flood_fill_inner(grid, start_x, start_y, max_depth, snake_body, buffers);
+    let res = flood_fill_inner(grid, start_x, start_y, max_depth, my_body, enemy_body);
     crate::PERF_STATS.with(|s| {
         let mut st = s.borrow_mut();
         st.floodfill_calls += 1;
@@ -31,8 +34,8 @@ fn flood_fill_inner(
     start_x: i32,
     start_y: i32,
     max_depth: i32,
-    snake_body: Option<&[Point]>,
-    buffers: &mut SearchBuffers,
+    my_body: Option<&[Point]>,
+    enemy_body: Option<&[Point]>,
 ) -> FloodFillResult {
     if start_x < 0 || start_y < 0 || start_x >= grid.width || start_y >= grid.height {
         return FloodFillResult {
@@ -42,74 +45,75 @@ fn flood_fill_inner(
         };
     }
 
-    buffers.ensure_adj(grid.width, grid.height);
-    let generation = buffers.next_gen();
-    let queue = &mut buffers.ff_queue;
-    queue.clear();
+    let mut front = BitBoard::with_bit(grid.idx(start_x, start_y));
+    let mut visited = front;
 
-    let width = grid.width;
-    let cells = &grid.cells;
-
-    let ff_gen = &mut buffers.ff_gen;
-    let body_gen = &mut buffers.ff_body_gen;
-    let body_map = &mut buffers.ff_body_map;
-
-    let mut body_len = 0;
-    if let Some(body) = snake_body {
-        body_len = body.len() as i32;
-        for (i, part) in body.iter().enumerate() {
-            if part.x >= 0 && part.x < width && part.y >= 0 && part.y < grid.height {
-                let idx = (part.y * width + part.x) as usize;
-                body_gen[idx] = generation;
-                body_map[idx] = i as i32;
-            }
-        }
-    }
-
-    let start_idx = (start_y * width + start_x) as usize;
-    ff_gen[start_idx] = generation;
-    queue.push(start_idx as u32);
+    let safe_cells = grid.safe_cells();
+    let food_cells = grid.food;
 
     let mut count = 1;
     let mut min_turns_to_clear = i32::MAX;
     let mut has_food = false;
-    let mut head = 0usize;
 
-    let adj_len = &buffers.adj_len;
-    let adj_list = &buffers.adj_list;
+    let my_mask = my_body.map_or(BitBoard::empty(), |b| {
+        let mut m = BitBoard::empty();
+        for p in b {
+            if p.x >= 0 && p.x < grid.width && p.y >= 0 && p.y < grid.height {
+                m.set(grid.idx(p.x, p.y));
+            }
+        }
+        m
+    });
 
-    while head < queue.len() && count < max_depth {
-        let curr_idx = unsafe { *queue.get_unchecked(head) } as usize;
-        head += 1;
+    let en_mask = enemy_body.map_or(BitBoard::empty(), |b| {
+        let mut m = BitBoard::empty();
+        for p in b {
+            if p.x >= 0 && p.x < grid.width && p.y >= 0 && p.y < grid.height {
+                m.set(grid.idx(p.x, p.y));
+            }
+        }
+        m
+    });
 
-        if !has_food && unsafe { *cells.get_unchecked(curr_idx) } == 1 {
+    // Start depth at 1 because we are looking at neighbors
+    for depth in 1..=max_depth {
+        if !has_food && (visited & food_cells).any() {
             has_food = true;
         }
 
-        let len = unsafe { *adj_len.get_unchecked(curr_idx) };
-        let neighbors = unsafe { adj_list.get_unchecked(curr_idx) };
+        let expanded_all = grid.ctx.expand(front) & !visited;
 
-        for i in 0..len {
-            let n_idx = unsafe { *neighbors.get_unchecked(i) };
-
-            if unsafe { *ff_gen.get_unchecked(n_idx) } != generation {
-                let cell = unsafe { *cells.get_unchecked(n_idx) };
-                if cell <= 1 {
-                    unsafe {
-                        *ff_gen.get_unchecked_mut(n_idx) = generation;
-                    }
-                    queue.push(n_idx as u32);
-                    count += 1;
-                } else if snake_body.is_some() && unsafe { *body_gen.get_unchecked(n_idx) } == generation {
-                    let b_idx = unsafe { *body_map.get_unchecked(n_idx) };
-                    let turns = body_len - b_idx;
-                    min_turns_to_clear = min_turns_to_clear.min(turns);
-                    unsafe {
-                        *ff_gen.get_unchecked_mut(n_idx) = generation;
+        // Helper closure to calculate escape time: max(travel_time, vanish_time)
+        let check_hits = |hits: BitBoard, body: &[Point], current_min: &mut i32| {
+            if hits.any() {
+                let len = body.len() as i32;
+                for (i, pt) in body.iter().enumerate() {
+                    if pt.x >= 0 && pt.x < grid.width && pt.y >= 0 && pt.y < grid.height {
+                        if hits.get(grid.idx(pt.x, pt.y)) {
+                            let vanish_time = len - i as i32;
+                            let escape_time = depth.max(vanish_time);
+                            *current_min = (*current_min).min(escape_time);
+                        }
                     }
                 }
             }
+        };
+
+        if let Some(body) = my_body {
+            check_hits(expanded_all & my_mask, body, &mut min_turns_to_clear);
         }
+
+        if let Some(body) = enemy_body {
+            check_hits(expanded_all & en_mask, body, &mut min_turns_to_clear);
+        }
+
+        front = expanded_all & safe_cells;
+        if front.is_empty() {
+            break;
+        }
+
+        visited |= front;
+        count += front.count_ones() as i32;
     }
 
     FloodFillResult {

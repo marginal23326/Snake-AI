@@ -1,46 +1,95 @@
+use crate::bitboard::{BitBoard, SearchContext};
 use snake_domain::Point;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Grid {
     pub width: i32,
     pub height: i32,
-    pub cells: Vec<i8>,
+    pub ctx: SearchContext,
+    pub food: BitBoard,
+    pub my_body: BitBoard,
+    pub enemy_body: BitBoard,
 }
 
 impl Grid {
     pub fn new(width: i32, height: i32) -> Self {
+        if width * height > 448 {
+            panic!(
+                "Grid size {}x{} too large for current engine configuration. Max capacity is 448 total cells.",
+                width, height
+            );
+        }
+
         Self {
             width,
             height,
-            cells: vec![0; (width * height) as usize],
+            ctx: SearchContext::new(width, height),
+            food: BitBoard::empty(),
+            my_body: BitBoard::empty(),
+            enemy_body: BitBoard::empty(),
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn idx(&self, x: i32, y: i32) -> usize {
         (y * self.width + x) as usize
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn get(&self, x: i32, y: i32) -> i8 {
         if x < 0 || y < 0 || x >= self.width || y >= self.height {
             return 9;
         }
-        self.cells[self.idx(x, y)]
+        let idx = self.idx(x, y);
+        if self.my_body.get(idx) {
+            return 2;
+        }
+        if self.enemy_body.get(idx) {
+            return 3;
+        }
+        if self.food.get(idx) {
+            return 1;
+        }
+        0
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn set(&mut self, x: i32, y: i32, val: i8) {
         if x < 0 || y < 0 || x >= self.width || y >= self.height {
             return;
         }
         let idx = self.idx(x, y);
-        self.cells[idx] = val;
+
+        // Always clear the cell first to prevent overlapping state
+        self.food.unset(idx);
+        self.my_body.unset(idx);
+        self.enemy_body.unset(idx);
+
+        match val {
+            1 => self.food.set(idx),
+            2 => self.my_body.set(idx),
+            3 => self.enemy_body.set(idx),
+            _ => {}
+        }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn is_safe(&self, x: i32, y: i32) -> bool {
-        matches!(self.get(x, y), 0 | 1)
+        if x < 0 || y < 0 || x >= self.width || y >= self.height {
+            return false;
+        }
+        let idx = self.idx(x, y);
+        !self.my_body.get(idx) && !self.enemy_body.get(idx)
+    }
+
+    #[inline(always)]
+    pub fn occupied(&self) -> BitBoard {
+        self.my_body | self.enemy_body
+    }
+
+    #[inline(always)]
+    pub fn safe_cells(&self) -> BitBoard {
+        self.ctx.valid_cells & !self.occupied()
     }
 
     pub fn from_state(cols: i32, rows: i32, food: &[Point], my_body: &[Point], enemy_body: &[Point]) -> Self {

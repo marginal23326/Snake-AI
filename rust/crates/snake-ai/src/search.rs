@@ -70,6 +70,7 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
     let opp_body = &enemy.body;
     let head = my_body[0];
 
+    // Identify if tails are stacked/protected
     let mut my_tail = None;
     let mut my_tail_stacked = false;
     if my_body.len() > 1 {
@@ -81,14 +82,21 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
 
     let mut opp_tail = None;
     let mut opp_tail_stacked = false;
-    let mut opp_tail_checked = false;
+    let mut enemy_can_eat = false;
+
     if opp_body.len() > 1 {
         let tail = opp_body[opp_body.len() - 1];
         let prev = opp_body[opp_body.len() - 2];
         opp_tail = Some(tail);
         opp_tail_stacked = tail == prev;
-        if opp_tail_stacked {
-            opp_tail_checked = true;
+
+        // Perform bitwise check for food adjacency
+        if let Some(eh) = opp_body.first() {
+            let eh_idx = grid.idx(eh.x, eh.y);
+            let eh_bb = crate::bitboard::BitBoard::with_bit(eh_idx);
+            if (grid.ctx.expand(eh_bb) & grid.food).any() {
+                enemy_can_eat = true;
+            }
         }
     }
 
@@ -104,26 +112,18 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         let ny = head.y + dy;
         let mut is_safe = grid.is_safe(nx, ny);
 
+        // Allow moving into own tail if it moves away
         if !is_safe {
             if let Some(my_tail_pos) = my_tail {
                 if nx == my_tail_pos.x && ny == my_tail_pos.y && !my_tail_stacked {
                     is_safe = true;
                 }
             }
+            // Allow moving into enemy tail if it moves away, isn't stacked, AND they can't eat
             if !is_safe {
                 if let Some(opp_tail_pos) = opp_tail {
-                    if nx == opp_tail_pos.x && ny == opp_tail_pos.y {
-                        if !opp_tail_checked && !opp_body.is_empty() {
-                            let opp_head = opp_body[0];
-                            opp_tail_stacked = grid.get(opp_head.x, opp_head.y - 1) == 1
-                                || grid.get(opp_head.x, opp_head.y + 1) == 1
-                                || grid.get(opp_head.x - 1, opp_head.y) == 1
-                                || grid.get(opp_head.x + 1, opp_head.y) == 1;
-                            opp_tail_checked = true;
-                        }
-                        if !opp_tail_stacked {
-                            is_safe = true;
-                        }
+                    if nx == opp_tail_pos.x && ny == opp_tail_pos.y && !opp_tail_stacked && !enemy_can_eat {
+                        is_safe = true;
                     }
                 }
             }
@@ -201,85 +201,7 @@ fn should_extend_leaf(grid: &Grid, me: &AgentState, enemy: &AgentState, cfg: &Ai
         return true;
     }
 
-    // mirrored check
     get_safe_neighbors(grid, enemy, me).count <= 2
-}
-
-fn shortest_distance_to_tail(grid: &Grid, start: Point, body: &[Point], buffers: &mut SearchBuffers) -> f64 {
-    let t_start = std::time::Instant::now();
-    let res = shortest_distance_to_tail_inner(grid, start, body, buffers);
-    crate::PERF_STATS.with(|s| {
-        let mut st = s.borrow_mut();
-        st.shortest_dist_calls += 1;
-        st.shortest_dist_duration += t_start.elapsed();
-    });
-    res
-}
-
-fn shortest_distance_to_tail_inner(grid: &Grid, start: Point, body: &[Point], buffers: &mut SearchBuffers) -> f64 {
-    if body.len() < 2 {
-        return f64::INFINITY;
-    }
-
-    let tail = body[body.len() - 1];
-    let prev = body[body.len() - 2];
-    if tail == prev {
-        return f64::INFINITY;
-    }
-    if start == tail {
-        return 0.0;
-    }
-
-    buffers.ensure_adj(grid.width, grid.height);
-    let generation = buffers.next_gen();
-    let queue = &mut buffers.sd_queue;
-    queue.clear();
-
-    let width = grid.width;
-    let cells = &grid.cells;
-    let sd_gen = &mut buffers.sd_gen;
-
-    let start_idx = (start.y * width + start.x) as usize;
-    queue.push(start_idx as u32);
-    sd_gen[start_idx] = generation;
-
-    let mut head = 0usize;
-    let tail_idx = (tail.y * width + tail.x) as usize;
-
-    let adj_len = &buffers.adj_len;
-    let adj_list = &buffers.adj_list;
-
-    while head < queue.len() {
-        let p = unsafe { *queue.get_unchecked(head) };
-        head += 1;
-
-        let curr_idx = (p & 0xFFFF) as usize;
-        let d = (p >> 16) as i32;
-        let nd = d + 1;
-
-        let len = unsafe { *adj_len.get_unchecked(curr_idx) };
-        let neighbors = unsafe { adj_list.get_unchecked(curr_idx) };
-
-        for i in 0..len {
-            let n_idx = unsafe { *neighbors.get_unchecked(i) };
-
-            if n_idx == tail_idx {
-                return nd as f64;
-            }
-
-            if unsafe { *sd_gen.get_unchecked(n_idx) } != generation {
-                let cell = unsafe { *cells.get_unchecked(n_idx) };
-                if cell <= 1 {
-                    unsafe {
-                        *sd_gen.get_unchecked_mut(n_idx) = generation;
-                    }
-                    queue.push((n_idx as u32) | ((nd as u32) << 16));
-                }
-            }
-        }
-    }
-
-    f64::INFINITY
 }
 
 pub fn negamax(
@@ -308,7 +230,6 @@ pub fn negamax(
 
     if depth != root_depth {
         if let Some(entry) = tt_entry {
-            // CAST: u8 from TT back to usize for comparison
             if (entry.depth as usize) >= depth {
                 match entry.flag {
                     TtFlag::Exact => {
@@ -440,6 +361,7 @@ pub fn negamax(
 
     for &mv in moves.iter() {
         let mut collision_penalty = 0.0;
+        let mut kill_threat_bonus = 0.0;
         if side == 0 && !enemy.body.is_empty() {
             let opp_head = enemy.body[0];
             let dist = (mv.x - opp_head.x).abs() + (mv.y - opp_head.y).abs();
@@ -450,6 +372,8 @@ pub fn negamax(
                     collision_penalty = cfg.scores.head_on_collision;
                 } else if opp_len == my_len {
                     collision_penalty = cfg.scores.draw;
+                } else {
+                    kill_threat_bonus = cfg.scores.kill_pressure;
                 }
             }
         }
@@ -484,6 +408,7 @@ pub fn negamax(
                 popped_tail = Some(tail);
                 if tail.x != mv.x || tail.y != mv.y {
                     let original_tail_val = grid.get(tail.x, tail.y);
+                    // Only clear the tail if it was genuinely ours (handling stacking)
                     if original_tail_val == cell_id {
                         grid.set(tail.x, tail.y, 0);
                         tail_restore = Some((tail.x, tail.y, original_tail_val));
@@ -541,12 +466,19 @@ pub fn negamax(
         me.health = old_health;
 
         let mut modified_score = -child.score;
-        if collision_penalty != 0.0 {
+
+        if collision_penalty < 0.0 {
             modified_score = modified_score.min(collision_penalty);
         }
+
         let terminal_band = modified_score.abs() >= cfg.scores.win.abs() * 0.9;
-        if ate_food && !terminal_band && modified_score > -50_000_000.0 {
-            modified_score += cfg.scores.eat_reward;
+        if !terminal_band {
+            if kill_threat_bonus > 0.0 {
+                modified_score += kill_threat_bonus;
+            }
+            if ate_food && modified_score > -50_000_000.0 {
+                modified_score += cfg.scores.eat_reward;
+            }
         }
 
         if is_root {
@@ -566,14 +498,10 @@ pub fn negamax(
             }
 
             if dense_tail_race && !enemy.body.is_empty() {
-                let has_tail_exit = shortest_distance_to_tail(grid, Point { x: mv.x, y: mv.y }, &enemy.body, buffers).is_finite();
                 let enemy_head = enemy.body[0];
                 let enemy_head_dist = (mv.x - enemy_head.x).abs() + (mv.y - enemy_head.y).abs();
                 if continuation_moves == 1 && enemy_head_dist <= 5 {
                     modified_score -= cfg.scores.territory_control.abs() * 120.0;
-                    if !has_tail_exit {
-                        modified_score -= cfg.scores.territory_control.abs() * 140.0;
-                    }
                 }
                 if let Some(enemy_tail) = enemy.body.last().copied()
                     && mv.x == enemy_tail.x

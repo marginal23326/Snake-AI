@@ -57,11 +57,7 @@ impl Default for TranspositionTable {
 
 impl TranspositionTable {
     pub fn new(size: usize) -> Self {
-        let size = if size.is_power_of_two() {
-            size
-        } else {
-            size.next_power_of_two()
-        };
+        let size = if size.is_power_of_two() { size } else { size.next_power_of_two() };
         Self {
             entries: vec![TtEntry::default(); size],
             mask: size - 1,
@@ -75,10 +71,10 @@ impl TranspositionTable {
         } else {
             requested_size.next_power_of_two()
         };
-        
+
         let size = size.min(self.entries.len());
         self.mask = size - 1;
-        
+
         self.generation = self.generation.wrapping_add(1);
         if self.generation == 0 {
             self.generation = 1;
@@ -91,10 +87,10 @@ impl TranspositionTable {
         let idx = (hash as usize) & self.mask;
         let entry = unsafe { self.entries.get_unchecked(idx) };
 
-        if entry.key == hash && entry.generation == self.generation { 
-            Some(*entry) 
-        } else { 
-            None 
+        if entry.key == hash && entry.generation == self.generation {
+            Some(*entry)
+        } else {
+            None
         }
     }
 

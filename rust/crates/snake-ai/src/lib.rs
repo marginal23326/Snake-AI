@@ -1,3 +1,4 @@
+pub mod bitboard;
 pub mod brain;
 pub mod config;
 pub mod floodfill;
