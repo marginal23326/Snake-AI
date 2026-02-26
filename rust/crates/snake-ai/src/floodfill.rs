@@ -54,11 +54,16 @@ fn flood_fill_inner(
     let mut min_turns_to_clear = i32::MAX;
     let mut has_food = false;
 
+    let mut vanish_map = [0i32; 448];
+
     let my_mask = my_body.map_or(BitBoard::empty(), |b| {
         let mut m = BitBoard::empty();
-        for p in b.iter() {
+        let len = b.len() as i32;
+        for (i, p) in b.iter().enumerate() {
             if p.x >= 0 && p.x < grid.width && p.y >= 0 && p.y < grid.height {
-                m.set(grid.idx(p.x, p.y));
+                let idx = grid.idx(p.x, p.y);
+                m.set(idx);
+                vanish_map[idx] = len - i as i32;
             }
         }
         m
@@ -66,15 +71,18 @@ fn flood_fill_inner(
 
     let en_mask = enemy_body.map_or(BitBoard::empty(), |b| {
         let mut m = BitBoard::empty();
-        for p in b.iter() {
+        let len = b.len() as i32;
+        for (i, p) in b.iter().enumerate() {
             if p.x >= 0 && p.x < grid.width && p.y >= 0 && p.y < grid.height {
-                m.set(grid.idx(p.x, p.y));
+                let idx = grid.idx(p.x, p.y);
+                m.set(idx);
+                // If both snakes overlap a cell (e.g. tail traces), take the max vanish time
+                vanish_map[idx] = vanish_map[idx].max(len - i as i32);
             }
         }
         m
     });
 
-    // Start depth at 1 because we are looking at neighbors
     for depth in 1..=max_depth {
         if !has_food && (visited & food_cells).any() {
             has_food = true;
@@ -82,28 +90,10 @@ fn flood_fill_inner(
 
         let expanded_all = grid.ctx.expand(front) & !visited;
 
-        // Helper closure to calculate escape time: max(travel_time, vanish_time)
-        let check_hits = |hits: BitBoard, body: &FastBody, current_min: &mut i32| {
-            if hits.any() {
-                let len = body.len() as i32;
-                for (i, pt) in body.iter().enumerate() {
-                    if pt.x >= 0 && pt.x < grid.width && pt.y >= 0 && pt.y < grid.height {
-                        if hits.get(grid.idx(pt.x, pt.y)) {
-                            let vanish_time = len - i as i32;
-                            let escape_time = depth.max(vanish_time);
-                            *current_min = (*current_min).min(escape_time);
-                        }
-                    }
-                }
-            }
-        };
-
-        if let Some(body) = my_body {
-            check_hits(expanded_all & my_mask, body, &mut min_turns_to_clear);
-        }
-
-        if let Some(body) = enemy_body {
-            check_hits(expanded_all & en_mask, body, &mut min_turns_to_clear);
+        let mut hits = expanded_all & (my_mask | en_mask);
+        while let Some(idx) = hits.pop_first() {
+            let escape_time = depth.max(vanish_map[idx]);
+            min_turns_to_clear = min_turns_to_clear.min(escape_time);
         }
 
         front = expanded_all & safe_cells;
