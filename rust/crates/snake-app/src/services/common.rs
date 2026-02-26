@@ -238,11 +238,11 @@ fn extract_agent_pair(state: &GameState, snake_id: &str) -> (AgentState, AgentSt
         .unwrap_or_else(|| Snake::new("enemy", "enemy", Vec::new(), 0));
     (
         AgentState {
-            body: me.body,
+            body: snake_ai::model::FastBody::from_vec(&me.body),
             health: me.health,
         },
         AgentState {
-            body: enemy.body,
+            body: snake_ai::model::FastBody::from_vec(&enemy.body),
             health: enemy.health,
         },
     )

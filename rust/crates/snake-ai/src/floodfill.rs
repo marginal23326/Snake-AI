@@ -1,7 +1,6 @@
 use crate::bitboard::BitBoard;
 use crate::grid::Grid;
-use crate::model::SearchBuffers;
-use snake_domain::Point;
+use crate::model::{FastBody, SearchBuffers};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FloodFillResult {
@@ -15,8 +14,8 @@ pub fn flood_fill(
     start_x: i32,
     start_y: i32,
     max_depth: i32,
-    my_body: Option<&[Point]>,
-    enemy_body: Option<&[Point]>,
+    my_body: Option<&FastBody>,
+    enemy_body: Option<&FastBody>,
     _buffers: &mut SearchBuffers,
 ) -> FloodFillResult {
     let start = std::time::Instant::now();
@@ -34,8 +33,8 @@ fn flood_fill_inner(
     start_x: i32,
     start_y: i32,
     max_depth: i32,
-    my_body: Option<&[Point]>,
-    enemy_body: Option<&[Point]>,
+    my_body: Option<&FastBody>,
+    enemy_body: Option<&FastBody>,
 ) -> FloodFillResult {
     if start_x < 0 || start_y < 0 || start_x >= grid.width || start_y >= grid.height {
         return FloodFillResult {
@@ -57,7 +56,7 @@ fn flood_fill_inner(
 
     let my_mask = my_body.map_or(BitBoard::empty(), |b| {
         let mut m = BitBoard::empty();
-        for p in b {
+        for p in b.iter() {
             if p.x >= 0 && p.x < grid.width && p.y >= 0 && p.y < grid.height {
                 m.set(grid.idx(p.x, p.y));
             }
@@ -67,7 +66,7 @@ fn flood_fill_inner(
 
     let en_mask = enemy_body.map_or(BitBoard::empty(), |b| {
         let mut m = BitBoard::empty();
-        for p in b {
+        for p in b.iter() {
             if p.x >= 0 && p.x < grid.width && p.y >= 0 && p.y < grid.height {
                 m.set(grid.idx(p.x, p.y));
             }
@@ -84,7 +83,7 @@ fn flood_fill_inner(
         let expanded_all = grid.ctx.expand(front) & !visited;
 
         // Helper closure to calculate escape time: max(travel_time, vanish_time)
-        let check_hits = |hits: BitBoard, body: &[Point], current_min: &mut i32| {
+        let check_hits = |hits: BitBoard, body: &FastBody, current_min: &mut i32| {
             if hits.any() {
                 let len = body.len() as i32;
                 for (i, pt) in body.iter().enumerate() {

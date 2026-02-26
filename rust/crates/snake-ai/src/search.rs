@@ -68,14 +68,14 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         return list;
     }
     let opp_body = &enemy.body;
-    let head = my_body[0];
+    let head = my_body.head();
 
     // Identify if tails are stacked/protected
     let mut my_tail = None;
     let mut my_tail_stacked = false;
     if my_body.len() > 1 {
-        let tail = my_body[my_body.len() - 1];
-        let prev = my_body[my_body.len() - 2];
+        let tail = my_body.last();
+        let prev = my_body.get(my_body.len() - 2);
         my_tail = Some(tail);
         my_tail_stacked = tail == prev;
     }
@@ -85,18 +85,17 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
     let mut enemy_can_eat = false;
 
     if opp_body.len() > 1 {
-        let tail = opp_body[opp_body.len() - 1];
-        let prev = opp_body[opp_body.len() - 2];
+        let tail = opp_body.last();
+        let prev = opp_body.get(opp_body.len() - 2);
         opp_tail = Some(tail);
         opp_tail_stacked = tail == prev;
 
         // Perform bitwise check for food adjacency
-        if let Some(eh) = opp_body.first() {
-            let eh_idx = grid.idx(eh.x, eh.y);
-            let eh_bb = crate::bitboard::BitBoard::with_bit(eh_idx);
-            if (grid.ctx.expand(eh_bb) & grid.food).any() {
-                enemy_can_eat = true;
-            }
+        let eh = opp_body.head();
+        let eh_idx = grid.idx(eh.x, eh.y);
+        let eh_bb = crate::bitboard::BitBoard::with_bit(eh_idx);
+        if (grid.ctx.expand(eh_bb) & grid.food).any() {
+            enemy_can_eat = true;
         }
     }
 
@@ -112,14 +111,12 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         let ny = head.y + dy;
         let mut is_safe = grid.is_safe(nx, ny);
 
-        // Allow moving into own tail if it moves away
         if !is_safe {
             if let Some(my_tail_pos) = my_tail {
                 if nx == my_tail_pos.x && ny == my_tail_pos.y && !my_tail_stacked {
                     is_safe = true;
                 }
             }
-            // Allow moving into enemy tail if it moves away, isn't stacked, AND they can't eat
             if !is_safe {
                 if let Some(opp_tail_pos) = opp_tail {
                     if nx == opp_tail_pos.x && ny == opp_tail_pos.y && !opp_tail_stacked && !enemy_can_eat {
@@ -151,14 +148,16 @@ fn root_tie_breaker(me: &AgentState, enemy: &AgentState, cols: i32, rows: i32, m
     let enemy_len = enemy.body.len();
 
     let mut move_into_enemy_tail_penalty = 0.0;
-    if let Some(enemy_tail) = enemy.body.last().copied() {
+    if !enemy.body.is_empty() {
+        let enemy_tail = enemy.body.last();
         if mv.x == enemy_tail.x && mv.y == enemy_tail.y {
             move_into_enemy_tail_penalty = 0.5;
         }
     }
 
     let mut head_contact_bias = 0.0;
-    if let Some(enemy_head) = enemy.body.first().copied() {
+    if !enemy.body.is_empty() {
+        let enemy_head = enemy.body.head();
         let dist = (mv.x - enemy_head.x).abs() + (mv.y - enemy_head.y).abs();
         if dist == 1 {
             if my_len > enemy_len {
@@ -175,7 +174,7 @@ fn root_tie_breaker(me: &AgentState, enemy: &AgentState, cols: i32, rows: i32, m
     if cols > 0 && rows > 0 && my_len >= 20 && enemy_len >= 20 {
         let density = (my_len + enemy_len) as f64 / (cols * rows) as f64;
         if density >= 0.4 {
-            let my_tail = me.body[my_len - 1];
+            let my_tail = me.body.last();
             let tail_dist = (mv.x - my_tail.x).abs() + (mv.y - my_tail.y).abs();
             tail_bias = -(tail_dist as f64);
         }
@@ -303,7 +302,7 @@ pub fn negamax(
         };
     }
 
-    let head = me.body[0];
+    let head = me.body.head();
     let head_idx = (head.y * grid.width + head.x) as usize;
     let mut move_list = get_safe_neighbors(grid, me, enemy);
     if move_list.count == 0 {
@@ -363,7 +362,7 @@ pub fn negamax(
         let mut collision_penalty = 0.0;
         let mut kill_threat_bonus = 0.0;
         if side == 0 && !enemy.body.is_empty() {
-            let opp_head = enemy.body[0];
+            let opp_head = enemy.body.head();
             let dist = (mv.x - opp_head.x).abs() + (mv.y - opp_head.y).abs();
             if dist == 1 {
                 let my_len = me.body.len();
@@ -395,7 +394,7 @@ pub fn negamax(
         let new_health = if ate_food { 100 } else { old_health - 1 };
 
         me.health = new_health;
-        me.body.insert(0, snake_domain::Point { x: mv.x, y: mv.y });
+        me.body.push_front(Point { x: mv.x, y: mv.y });
 
         let cell_id: i8 = if side == 0 { 2 } else { 3 };
 
@@ -404,17 +403,15 @@ pub fn negamax(
         next_hash = zobrist.xor(next_hash, mv.x, mv.y, cell_id);
 
         if !ate_food {
-            if let Some(tail) = me.body.pop() {
-                popped_tail = Some(tail);
-                if tail.x != mv.x || tail.y != mv.y {
-                    let original_tail_val = grid.get(tail.x, tail.y);
-                    // Only clear the tail if it was genuinely ours (handling stacking)
-                    if original_tail_val == cell_id {
-                        grid.set(tail.x, tail.y, 0);
-                        tail_restore = Some((tail.x, tail.y, original_tail_val));
-                    }
-                    next_hash = zobrist.xor(next_hash, tail.x, tail.y, cell_id);
+            let tail = me.body.pop_back();
+            popped_tail = Some(tail);
+            if tail.x != mv.x || tail.y != mv.y {
+                let original_tail_val = grid.get(tail.x, tail.y);
+                if original_tail_val == cell_id {
+                    grid.set(tail.x, tail.y, 0);
+                    tail_restore = Some((tail.x, tail.y, original_tail_val));
                 }
+                next_hash = zobrist.xor(next_hash, tail.x, tail.y, cell_id);
             }
         }
 
@@ -454,14 +451,14 @@ pub fn negamax(
         }
 
         if let Some(idx) = ate_food_idx {
-            food.push(snake_domain::Point { x: mv.x, y: mv.y });
+            food.push(Point { x: mv.x, y: mv.y });
             let last = food.len() - 1;
             food.swap(idx, last);
         }
 
-        me.body.remove(0);
+        me.body.pop_front();
         if let Some(tail) = popped_tail {
-            me.body.push(tail);
+            me.body.push_back(tail);
         }
         me.health = old_health;
 
@@ -488,8 +485,8 @@ pub fn negamax(
                 && enemy_len >= 20
                 && ((my_len + enemy_len) as f64 / (grid.width * grid.height) as f64) >= cfg.dense_tail_race_occupancy;
 
-            me.body.insert(0, snake_domain::Point { x: mv.x, y: mv.y });
-            let emulated_tail = if !ate_food { me.body.pop() } else { None };
+            me.body.push_front(Point { x: mv.x, y: mv.y });
+            let emulated_tail = if !ate_food { Some(me.body.pop_back()) } else { None };
 
             let continuation_moves = get_safe_neighbors(grid, me, enemy).count;
 
@@ -498,22 +495,22 @@ pub fn negamax(
             }
 
             if dense_tail_race && !enemy.body.is_empty() {
-                let enemy_head = enemy.body[0];
+                let enemy_head = enemy.body.head();
                 let enemy_head_dist = (mv.x - enemy_head.x).abs() + (mv.y - enemy_head.y).abs();
                 if continuation_moves == 1 && enemy_head_dist <= 5 {
                     modified_score -= cfg.scores.territory_control.abs() * 120.0;
                 }
-                if let Some(enemy_tail) = enemy.body.last().copied()
-                    && mv.x == enemy_tail.x
-                    && mv.y == enemy_tail.y
-                {
-                    modified_score -= cfg.scores.territory_control.abs() * 2.0;
+                if !enemy.body.is_empty() {
+                    let enemy_tail = enemy.body.last();
+                    if mv.x == enemy_tail.x && mv.y == enemy_tail.y {
+                        modified_score -= cfg.scores.territory_control.abs() * 2.0;
+                    }
                 }
             }
 
-            me.body.remove(0);
+            me.body.pop_front();
             if let Some(t) = emulated_tail {
-                me.body.push(t);
+                me.body.push_back(t);
             }
         }
 

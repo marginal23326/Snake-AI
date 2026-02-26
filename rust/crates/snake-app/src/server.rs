@@ -8,6 +8,7 @@ use axum::{
     routing::{get, post},
 };
 use serde_json::{Value, json};
+use snake_ai::model::FastBody;
 use snake_ai::{AgentState, AiConfig, decide_move_debug};
 use snake_api::parse_move_request;
 use snake_domain::Direction;
@@ -80,11 +81,11 @@ async fn handle_move(State(state): State<ServerState>, Json(body): Json<Value>) 
     let cfg = state.config.read().await.clone();
     let decision = decide_move_debug(
         AgentState {
-            body: you.body,
+            body: FastBody::from_vec(&you.body),
             health: you.health,
         },
         AgentState {
-            body: enemy.as_ref().map(|e| e.body.clone()).unwrap_or_default(),
+            body: FastBody::from_vec(&enemy.as_ref().map(|e| e.body.clone()).unwrap_or_default()),
             health: enemy.as_ref().map(|e| e.health).unwrap_or(0),
         },
         parsed.food,

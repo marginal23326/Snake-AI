@@ -78,7 +78,7 @@ fn fallback_move(grid: &Grid, me: &AgentState, buffers: &mut SearchBuffers) -> D
     if me.body.is_empty() {
         return Direction::Up;
     }
-    let head = me.body[0];
+    let head = me.body.head();
     let neighbors = [
         (head.x, head.y + 1, Direction::Up),
         (head.x, head.y - 1, Direction::Down),
@@ -89,7 +89,7 @@ fn fallback_move(grid: &Grid, me: &AgentState, buffers: &mut SearchBuffers) -> D
     let mut candidates = Vec::new();
     for (x, y, dir) in neighbors {
         if grid.is_safe(x, y) {
-            let ff = flood_fill(grid, x, y, 100, None, None, buffers);
+            let ff = flood_fill(grid, x, y, 100, Some(&me.body), None, buffers);
             candidates.push((ff.count, dir));
         }
     }
@@ -108,6 +108,7 @@ pub fn decide_move_debug(
     crate::PERF_STATS.with(|s| *s.borrow_mut() = crate::PerfStats::default());
 
     let started = Instant::now();
+
     let mut grid = Grid::from_state(cols, rows, &foods, &me.body, &enemy.body);
 
     let dist_map_vec = get_food_distance_map(&grid, &foods);

@@ -1,5 +1,5 @@
 use std::fmt;
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr, ShrAssign};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, Shr};
 
 /// 7 words * 64 bits = 448 bits. Perfectly fits up to 20x20 boards (400 bits).
 const N_WORDS: usize = 7;

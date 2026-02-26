@@ -6,6 +6,7 @@ use std::{
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use snake_ai::AgentState;
+use snake_ai::model::FastBody;
 use snake_domain::{Direction, Point};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,11 +75,11 @@ impl ScenarioV2 {
 
         Some((
             AgentState {
-                body: me.body.clone(),
+                body: FastBody::from_vec(&me.body),
                 health: me.health,
             },
             AgentState {
-                body: enemy.body,
+                body: FastBody::from_vec(&enemy.body),
                 health: enemy.health,
             },
             self.board.food.clone(),

@@ -55,12 +55,13 @@ fn evaluate_inner(
 
     score += me.body.len() as f64 * cfg.scores.length;
 
-    let my_head = me.body[0];
-    let enemy_head = enemy.body[0];
+    let my_head = me.body.head();
+    let enemy_head = enemy.body.head();
 
     let mut tail_is_safe = false;
     let mut original_tail_val = 0i8;
-    if let Some(tail) = me.body.last().copied() {
+    if !me.body.is_empty() {
+        let tail = me.body.last();
         if me.health < 100 {
             tail_is_safe = true;
             original_tail_val = grid.get(tail.x, tail.y);
@@ -70,7 +71,7 @@ fn evaluate_inner(
 
     let voronoi = compute_voronoi(grid, my_head, enemy_head, buffers);
     if tail_is_safe {
-        let tail = me.body[me.body.len() - 1];
+        let tail = me.body.last();
         grid.set(tail.x, tail.y, original_tail_val);
     }
 
@@ -98,7 +99,7 @@ fn evaluate_inner(
     }
 
     if !i_am_in_death_trap && voronoi.enemy_count < enemy.body.len() as i32 {
-        let en_head = enemy.body[0];
+        let en_head = enemy.body.head();
         let en_len = enemy.body.len() as i32;
         let ff = flood_fill(grid, en_head.x, en_head.y, en_len + 2, Some(&enemy.body), Some(&me.body), buffers);
         let food_mod = if ff.has_food { 1 } else { 0 };

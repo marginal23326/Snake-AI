@@ -92,15 +92,15 @@ impl Grid {
         self.ctx.valid_cells & !self.occupied()
     }
 
-    pub fn from_state(cols: i32, rows: i32, food: &[Point], my_body: &[Point], enemy_body: &[Point]) -> Self {
+    pub fn from_state(cols: i32, rows: i32, food: &[Point], my_body: &crate::model::FastBody, enemy_body: &crate::model::FastBody) -> Self {
         let mut g = Self::new(cols, rows);
         for f in food {
             g.set(f.x, f.y, 1);
         }
-        for p in my_body {
+        for p in my_body.iter() {
             g.set(p.x, p.y, 2);
         }
-        for p in enemy_body {
+        for p in enemy_body.iter() {
             g.set(p.x, p.y, 3);
         }
         g

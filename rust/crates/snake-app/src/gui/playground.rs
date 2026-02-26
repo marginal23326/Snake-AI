@@ -74,11 +74,11 @@ impl SnakeGuiApp {
         let started = Instant::now();
         let ai_decision = decide_move_debug(
             AgentState {
-                body: s2.body.clone(),
+                body: snake_ai::model::FastBody::from_vec(&s2.body),
                 health: s2.health,
             },
             AgentState {
-                body: s1.body.clone(),
+                body: snake_ai::model::FastBody::from_vec(&s1.body),
                 health: s1.health,
             },
             self.sim_state.board.food.clone(),
