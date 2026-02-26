@@ -70,7 +70,6 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
     let opp_body = &enemy.body;
     let head = my_body.head();
 
-    // Identify if tails are stacked/protected
     let mut my_tail = None;
     let mut my_tail_stacked = false;
     if my_body.len() > 1 {
@@ -90,7 +89,6 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         opp_tail = Some(tail);
         opp_tail_stacked = tail == prev;
 
-        // Perform bitwise check for food adjacency
         let eh = opp_body.head();
         let eh_idx = grid.idx(eh.x, eh.y);
         let eh_bb = crate::bitboard::BitBoard::with_bit(eh_idx);
@@ -127,12 +125,7 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         }
 
         if is_safe {
-            list.push(TtMove {
-                x: nx,
-                y: ny,
-                dir,
-                dir_int,
-            });
+            list.push(TtMove { x: nx, y: ny, dir, dir_int });
         }
     }
 
@@ -358,7 +351,7 @@ pub fn negamax(
     let mut best_score = f64::NEG_INFINITY;
     let mut best_tie_break = f64::NEG_INFINITY;
 
-    for &mv in moves.iter() {
+    for (i, &mv) in moves.iter().enumerate() {
         let mut collision_penalty = 0.0;
         let mut kill_threat_bonus = 0.0;
         if side == 0 && !enemy.body.is_empty() {
@@ -425,25 +418,123 @@ pub fn negamax(
             }
         }
 
-        let child = negamax(
-            grid,
-            enemy,
-            me,
-            food,
-            None,
-            depth - 1,
-            -beta,
-            -alpha,
-            1 - side,
-            root_depth,
-            next_hash,
-            history_table,
-            cfg,
-            tt,
-            zobrist,
-            q_depth,
-            buffers,
-        );
+        // Evaluate root bonuses while the move is applied and board is accurately updated
+        let mut root_bonus = 0.0;
+        if is_root {
+            let continuation_moves = get_safe_neighbors(grid, me, enemy).count;
+            if continuation_moves == 0 {
+                root_bonus += cfg.scores.trap_danger;
+            }
+
+            let my_len = me.body.len();
+            let enemy_len = enemy.body.len();
+            let dense_tail_race = my_len >= 20
+                && enemy_len >= 20
+                && ((my_len + enemy_len) as f64 / (grid.width * grid.height) as f64) >= cfg.dense_tail_race_occupancy;
+
+            if dense_tail_race && !enemy.body.is_empty() {
+                let enemy_head = enemy.body.head();
+                let enemy_head_dist = (mv.x - enemy_head.x).abs() + (mv.y - enemy_head.y).abs();
+                if continuation_moves == 1 && enemy_head_dist <= 5 {
+                    root_bonus -= cfg.scores.territory_control.abs() * 120.0;
+                }
+                let enemy_tail = enemy.body.last();
+                if mv.x == enemy_tail.x && mv.y == enemy_tail.y {
+                    root_bonus -= cfg.scores.territory_control.abs() * 2.0;
+                }
+            }
+        }
+
+        let calc_mod_score = |c_score: f64| -> f64 {
+            let mut ms = -c_score;
+            if collision_penalty < 0.0 {
+                ms = ms.min(collision_penalty);
+            }
+            let terminal_band = ms.abs() >= cfg.scores.win.abs() * 0.9;
+            if !terminal_band {
+                if kill_threat_bonus > 0.0 {
+                    ms += kill_threat_bonus;
+                }
+                if ate_food && ms > -50_000_000.0 {
+                    ms += cfg.scores.eat_reward;
+                }
+            }
+            ms + root_bonus
+        };
+
+        // PRINCIPAL VARIATION SEARCH
+        let mut child_score;
+        if i == 0 {
+            let child = negamax(
+                grid,
+                enemy,
+                me,
+                food,
+                None,
+                depth - 1,
+                -beta,
+                -alpha,
+                1 - side,
+                root_depth,
+                next_hash,
+                history_table,
+                cfg,
+                tt,
+                zobrist,
+                q_depth,
+                buffers,
+            );
+            child_score = child.score;
+        } else {
+            // Zero window assumption
+            let child = negamax(
+                grid,
+                enemy,
+                me,
+                food,
+                None,
+                depth - 1,
+                -alpha - 1e-5,
+                -alpha,
+                1 - side,
+                root_depth,
+                next_hash,
+                history_table,
+                cfg,
+                tt,
+                zobrist,
+                q_depth,
+                buffers,
+            );
+            child_score = child.score;
+
+            let temp_mod = calc_mod_score(child_score);
+            if temp_mod > alpha && temp_mod < beta {
+                // Assumption failed, re-search with full window
+                let child_re = negamax(
+                    grid,
+                    enemy,
+                    me,
+                    food,
+                    None,
+                    depth - 1,
+                    -beta,
+                    -alpha,
+                    1 - side,
+                    root_depth,
+                    next_hash,
+                    history_table,
+                    cfg,
+                    tt,
+                    zobrist,
+                    q_depth,
+                    buffers,
+                );
+                child_score = child_re.score;
+            }
+        }
+
+        let modified_score = calc_mod_score(child_score);
 
         grid.set(mv.x, mv.y, original_head_val);
         if let Some((tx, ty, tv)) = tail_restore {
@@ -451,7 +542,7 @@ pub fn negamax(
         }
 
         if let Some(idx) = ate_food_idx {
-            food.push(Point { x: mv.x, y: mv.y });
+            food.push(snake_domain::Point { x: mv.x, y: mv.y });
             let last = food.len() - 1;
             food.swap(idx, last);
         }
@@ -462,62 +553,10 @@ pub fn negamax(
         }
         me.health = old_health;
 
-        let mut modified_score = -child.score;
-
-        if collision_penalty < 0.0 {
-            modified_score = modified_score.min(collision_penalty);
-        }
-
-        let terminal_band = modified_score.abs() >= cfg.scores.win.abs() * 0.9;
-        if !terminal_band {
-            if kill_threat_bonus > 0.0 {
-                modified_score += kill_threat_bonus;
-            }
-            if ate_food && modified_score > -50_000_000.0 {
-                modified_score += cfg.scores.eat_reward;
-            }
-        }
-
-        if is_root {
-            let my_len = me.body.len() + if ate_food { 1 } else { 0 };
-            let enemy_len = enemy.body.len();
-            let dense_tail_race = my_len >= 20
-                && enemy_len >= 20
-                && ((my_len + enemy_len) as f64 / (grid.width * grid.height) as f64) >= cfg.dense_tail_race_occupancy;
-
-            me.body.push_front(Point { x: mv.x, y: mv.y });
-            let emulated_tail = if !ate_food { Some(me.body.pop_back()) } else { None };
-
-            let continuation_moves = get_safe_neighbors(grid, me, enemy).count;
-
-            if continuation_moves == 0 {
-                modified_score += cfg.scores.trap_danger;
-            }
-
-            if dense_tail_race && !enemy.body.is_empty() {
-                let enemy_head = enemy.body.head();
-                let enemy_head_dist = (mv.x - enemy_head.x).abs() + (mv.y - enemy_head.y).abs();
-                if continuation_moves == 1 && enemy_head_dist <= 5 {
-                    modified_score -= cfg.scores.territory_control.abs() * 120.0;
-                }
-                if !enemy.body.is_empty() {
-                    let enemy_tail = enemy.body.last();
-                    if mv.x == enemy_tail.x && mv.y == enemy_tail.y {
-                        modified_score -= cfg.scores.territory_control.abs() * 2.0;
-                    }
-                }
-            }
-
-            me.body.pop_front();
-            if let Some(t) = emulated_tail {
-                me.body.push_back(t);
-            }
-        }
-
         if is_root {
             child_records.push(RootChildRecord {
                 mv,
-                raw_recursion_score: child.score,
+                raw_recursion_score: child_score,
                 collision_penalty,
                 ate: ate_food,
                 modified_score,
