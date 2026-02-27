@@ -96,7 +96,7 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
     }
     let tt = tt_lock.read().unwrap();
 
-    let num_threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(4);
+    let num_threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
 
     let (selected, score, root_children, aggregated_stats) = std::thread::scope(|s| {
         let mut handles = vec![];
@@ -177,7 +177,7 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
         let st = s.borrow();
         println!("PROFILING:");
         println!("Total time: {:?}", elapsed);
-        println!("Nodes (4 Cores): {}", st.negamax_calls);
+        println!("Nodes (All Cores): {}", st.negamax_calls);
         println!("Eval: {:>8} calls, {:?}", st.eval_calls, st.eval_duration);
         println!("Voronoi: {:>8} calls, {:?}", st.voronoi_calls, st.voronoi_duration);
         println!("Floodfill: {:>8} calls, {:?}", st.floodfill_calls, st.floodfill_duration);
