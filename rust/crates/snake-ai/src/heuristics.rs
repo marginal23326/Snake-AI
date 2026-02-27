@@ -8,7 +8,7 @@ use crate::{
     voronoi::compute_voronoi,
 };
 
-#[inline]
+#[inline(always)]
 fn manhattan(a: Point, b: Point) -> i32 {
     (a.x - b.x).abs() + (a.y - b.y).abs()
 }

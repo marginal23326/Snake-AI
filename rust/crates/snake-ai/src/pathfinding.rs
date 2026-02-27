@@ -14,7 +14,7 @@ pub fn get_food_distance_map(grid: &Grid) -> Vec<i16> {
 fn get_food_distance_map_inner(grid: &Grid) -> Vec<i16> {
     let size = (grid.width * grid.height) as usize;
     let mut dist_map = vec![1000i16; size];
-    
+
     let mut current_front = grid.food;
     let mut visited = current_front;
     let safe_cells = grid.safe_cells();

@@ -465,71 +465,15 @@ pub fn negamax(
         // PRINCIPAL VARIATION SEARCH
         let mut child_score;
         if i == 0 {
-            let child = negamax(
-                grid,
-                enemy,
-                me,
-                food,
-                None,
-                depth - 1,
-                -beta,
-                -alpha,
-                1 - side,
-                root_depth,
-                next_hash,
-                history_table,
-                cfg,
-                tt,
-                zobrist,
-                q_depth,
-                buffers,
-            );
+            let child = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers);
             child_score = child.score;
         } else {
-            // Zero window assumption
-            let child = negamax(
-                grid,
-                enemy,
-                me,
-                food,
-                None,
-                depth - 1,
-                -alpha - 1e-5,
-                -alpha,
-                1 - side,
-                root_depth,
-                next_hash,
-                history_table,
-                cfg,
-                tt,
-                zobrist,
-                q_depth,
-                buffers,
-            );
+            let child = negamax(grid, enemy, me, food, None, depth - 1, -alpha - 1e-5, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers);
             child_score = child.score;
-
+            
             let temp_mod = calc_mod_score(child_score);
             if temp_mod > alpha && temp_mod < beta {
-                // Assumption failed, re-search with full window
-                let child_re = negamax(
-                    grid,
-                    enemy,
-                    me,
-                    food,
-                    None,
-                    depth - 1,
-                    -beta,
-                    -alpha,
-                    1 - side,
-                    root_depth,
-                    next_hash,
-                    history_table,
-                    cfg,
-                    tt,
-                    zobrist,
-                    q_depth,
-                    buffers,
-                );
+                let child_re = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers);
                 child_score = child_re.score;
             }
         }
