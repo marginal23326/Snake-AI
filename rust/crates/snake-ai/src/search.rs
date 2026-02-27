@@ -210,10 +210,11 @@ pub fn negamax(
     current_hash: u64,
     history_table: &mut [Vec<i32>; 2],
     cfg: &AiConfig,
-    tt: &mut TranspositionTable,
+    tt: &TranspositionTable,
     zobrist: &Zobrist,
     q_depth: usize,
     buffers: &mut SearchBuffers,
+    thread_id: usize,
 ) -> SearchResult {
     crate::PERF_STATS.with(|s| s.borrow_mut().negamax_calls += 1);
 
@@ -280,6 +281,7 @@ pub fn negamax(
                 zobrist,
                 q_depth + 1,
                 buffers,
+                thread_id,
             );
         }
 
@@ -295,9 +297,11 @@ pub fn negamax(
         };
     }
 
+    let is_root = root_depth == depth && side == 0;
     let head = me.body.head();
     let head_idx = (head.y * grid.width + head.x) as usize;
     let mut move_list = get_safe_neighbors(grid, me, enemy);
+    
     if move_list.count == 0 {
         return SearchResult {
             score: cfg.scores.loss - depth as f64,
@@ -343,9 +347,13 @@ pub fn negamax(
             }
             min_a.cmp(&min_b)
         });
+
+        if is_root && thread_id > 0 {
+            let shift = thread_id % moves.len();
+            moves.rotate_left(shift);
+        }
     }
 
-    let is_root = root_depth == depth && side == 0;
     let mut child_records = Vec::new();
     let mut best_move = moves[0];
     let mut best_score = f64::NEG_INFINITY;
@@ -465,15 +473,15 @@ pub fn negamax(
         // PRINCIPAL VARIATION SEARCH
         let mut child_score;
         if i == 0 {
-            let child = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers);
+            let child = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
             child_score = child.score;
         } else {
-            let child = negamax(grid, enemy, me, food, None, depth - 1, -alpha - 1e-5, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers);
+            let child = negamax(grid, enemy, me, food, None, depth - 1, -alpha - 1e-5, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
             child_score = child.score;
             
             let temp_mod = calc_mod_score(child_score);
             if temp_mod > alpha && temp_mod < beta {
-                let child_re = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers);
+                let child_re = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
                 child_score = child_re.score;
             }
         }

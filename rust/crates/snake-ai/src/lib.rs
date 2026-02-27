@@ -31,8 +31,6 @@ pub struct PerfStats {
     pub move_gen_duration: Duration,
     pub distmap_calls: u64,
     pub distmap_duration: Duration,
-    pub shortest_dist_calls: u64,
-    pub shortest_dist_duration: Duration,
 }
 
 thread_local! {
