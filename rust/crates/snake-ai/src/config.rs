@@ -35,7 +35,7 @@ pub struct AiConfig {
 impl Default for AiConfig {
     fn default() -> Self {
         Self {
-            max_depth: 6,
+            max_depth: 16,
             dense_tail_race_occupancy: 0.5,
             scores: ScoreConfig {
                 win: 1_000_000_000.0,

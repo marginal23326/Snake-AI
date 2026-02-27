@@ -1,3 +1,4 @@
 node_modules/
 rust/target/
 rust/target_verify/
+rust/data/arena_snapshot.json
