@@ -1,3 +1,4 @@
+use crate::RegressionOutput;
 use std::time::Instant;
 
 use eframe::egui::{self, Color32, RichText};
@@ -221,8 +222,7 @@ impl SnakeGuiApp {
                     RegressionOptions {
                         scenario_dir: scenario_dir.into(),
                         depths,
-                        quiet: true,
-                        quiet_fail_only: true,
+                        output: RegressionOutput::FailuresOnly,
                     },
                 )
                 .map_err(|e| e.to_string());
@@ -301,6 +301,7 @@ impl SnakeGuiApp {
                 self_play: self.arena_self_play,
                 api_flavor: ApiFlavor::Auto,
                 request_timeout_ms: 700,
+                payload_timeout_ms: 100,
                 find_modes,
                 invalid_find_modes,
                 only_loss: self.arena_only_loss,

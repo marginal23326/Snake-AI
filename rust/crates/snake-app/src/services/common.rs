@@ -58,6 +58,7 @@ pub(crate) struct MatchRunConfig {
     pub height: i32,
     pub max_turns: u32,
     pub request_timeout_ms: u64,
+    pub payload_timeout_ms: u32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -248,8 +249,8 @@ fn extract_agent_pair(state: &GameState, snake_id: &str) -> (AgentState, AgentSt
     )
 }
 
-async fn request_http_move(client: &Client, url: &str, state: &GameState, snake_id: &str, flavor: ApiFlavor) -> Direction {
-    let payload = match build_move_payload(state, snake_id, flavor, "rust-arena") {
+async fn request_http_move(client: &Client, url: &str, state: &GameState, snake_id: &str, flavor: ApiFlavor, payload_timeout_ms: u32) -> Direction {
+    let payload = match build_move_payload(state, snake_id, flavor, "rust-arena", payload_timeout_ms) {
         Ok(v) => v,
         Err(_) => return Direction::Up,
     };
@@ -329,7 +330,7 @@ pub(crate) async fn run_single_match_with_options(
                     )
                     .best_move
                 }
-                OpponentMode::Http { url, flavor } => request_http_move(&client, url, &state, "s2", *flavor).await,
+                OpponentMode::Http { url, flavor } => request_http_move(&client, url, &state, "s2", *flavor, match_cfg.payload_timeout_ms).await,
             }
         };
 

@@ -9,6 +9,6 @@ pub use arena::{
     run_arena_with_progress,
 };
 pub use common::{build_playground_state, format_opponent_roster};
-pub use regression::{RegressionOptions, RegressionSummary, run_regression_suite};
+pub use regression::{run_regression_suite, RegressionOptions, RegressionOutput, RegressionSummary};
 pub use trainer::{TrainerOptions, TrainerSummary, run_trainer};
 pub use util::{default_scenario_dir, parse_depths};

@@ -19,7 +19,7 @@ use crate::{
     gui::run_gui,
     server::run_server,
     services::{
-        ArenaOptions, RegressionOptions, TrainerOptions, default_scenario_dir, format_arena_progress_line, format_arena_summary_report,
+        ArenaOptions, RegressionOptions, RegressionOutput, TrainerOptions, default_scenario_dir, format_arena_progress_line, format_arena_summary_report,
         format_opponent_roster, parse_arena_find_modes, parse_depths, run_arena_with_progress, run_regression_suite, run_trainer,
     },
 };
@@ -39,6 +39,9 @@ enum Command {
         host: String,
         #[arg(long, default_value_t = 9000)]
         port: u16,
+        
+        #[arg(long)]
+        debug_perf: bool,
     },
     Test(TestCliArgs),
     Arena(ArenaCliArgs),
@@ -51,20 +54,25 @@ struct TestCliArgs {
     scenario_dir: Option<PathBuf>,
     #[arg(long, default_value = RegressionOptions::DEFAULT_DEPTHS_RAW)]
     depths: String,
-    #[arg(long, default_value_t = RegressionOptions::DEFAULT_QUIET)]
+    #[arg(long, default_value_t = false)]
     quiet: bool,
-    #[arg(long, default_value_t = RegressionOptions::DEFAULT_QUIET_FAIL_ONLY)]
+    #[arg(long, default_value_t = false)]
     quiet_fail_only: bool,
+    #[arg(long)]
+    debug_perf: bool,
 }
 
 impl TestCliArgs {
     fn into_runtime(self, rust_root: &Path) -> RegressionOptions {
         let scenario_dir = self.scenario_dir.unwrap_or_else(|| default_scenario_dir(rust_root));
+        
+        // Map CLI flags to explicit Enum state
+        let output = RegressionOutput::from_flags(self.quiet, self.quiet_fail_only);
+
         RegressionOptions {
             scenario_dir,
             depths: parse_depths(&self.depths),
-            quiet: self.quiet,
-            quiet_fail_only: self.quiet_fail_only,
+            output,
         }
     }
 }
@@ -92,6 +100,12 @@ struct ArenaCliArgs {
         default_value_t = ArenaOptions::DEFAULT_REQUEST_TIMEOUT_MS
     )]
     request_timeout: u64,
+    #[arg(
+        long,
+        alias = "move-timeout",
+        default_value_t = ArenaOptions::DEFAULT_PAYLOAD_TIMEOUT_MS
+    )]
+    payload_timeout: u32,
     #[arg(long = "find", short = 'f', action = ArgAction::Append)]
     find: Vec<String>,
     #[arg(
@@ -129,6 +143,7 @@ impl ArenaCliArgs {
             self_play: self.self_play,
             api_flavor: normalize_api_type(Some(self.api.as_str())),
             request_timeout_ms: self.request_timeout,
+            payload_timeout_ms: self.payload_timeout,
             find_modes,
             invalid_find_modes,
             only_loss: self.only_loss,
@@ -380,16 +395,20 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
     let command = cli.command.unwrap_or(Command::Gui);
-    let base_cfg = AiConfig::default();
+    let mut base_cfg = AiConfig::default();
 
     match command {
         Command::Gui => run_gui()?,
-        Command::Server { host, port } => {
+        Command::Server { host, port, debug_perf } => {
+            base_cfg.debug_logging = debug_perf;
+
             let addr = SocketAddr::from_str(&format!("{host}:{port}"))?;
             let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
             rt.block_on(run_server(addr, base_cfg))?;
         }
         Command::Test(args) => {
+            base_cfg.debug_logging = args.debug_perf;
+
             let rust_root = rust_root();
             let options = args.into_runtime(&rust_root);
             let summary = run_regression_suite(base_cfg, options)?;

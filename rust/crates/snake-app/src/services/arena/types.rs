@@ -95,6 +95,7 @@ pub struct ArenaOptions {
     pub self_play: bool,
     pub api_flavor: ApiFlavor,
     pub request_timeout_ms: u64,
+    pub payload_timeout_ms: u32,
     pub find_modes: Vec<ArenaFindMode>,
     pub invalid_find_modes: Vec<String>,
     pub only_loss: bool,
@@ -113,6 +114,7 @@ impl ArenaOptions {
     pub const DEFAULT_SELF_PLAY: bool = false;
     pub const DEFAULT_API_RAW: &'static str = "auto";
     pub const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 700;
+    pub const DEFAULT_PAYLOAD_TIMEOUT_MS: u32 = 100;
     pub const DEFAULT_ONLY_LOSS: bool = false;
     pub const DEFAULT_RESUME: bool = false;
     pub const DEFAULT_SNAPSHOT_TICKS: usize = 10;

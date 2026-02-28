@@ -29,6 +29,8 @@ pub struct ScoreConfig {
 pub struct AiConfig {
     pub max_depth: usize,
     pub dense_tail_race_occupancy: f64,
+    #[serde(default)]
+    pub debug_logging: bool,
     pub scores: ScoreConfig,
 }
 
@@ -37,6 +39,7 @@ impl Default for AiConfig {
         Self {
             max_depth: 16,
             dense_tail_race_occupancy: 0.5,
+            debug_logging: false,
             scores: ScoreConfig {
                 win: 1_000_000_000.0,
                 loss: -1_000_000_000.0,
