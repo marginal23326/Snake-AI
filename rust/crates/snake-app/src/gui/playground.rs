@@ -15,6 +15,8 @@ impl SnakeGuiApp {
         self.player_input_queue.clear();
         self.player_dir = Direction::Up;
         self.last_move_ms = 0.0;
+        self.pv_line.clear();
+        self.pv_index = 0;
     }
 
     fn is_opposite(a: Direction, b: Direction) -> bool {
@@ -55,7 +57,42 @@ impl SnakeGuiApp {
         }
     }
 
+    pub(super) fn evaluate_ai(&mut self) {
+        let s1 = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s1").cloned();
+        let s2 = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s2").cloned();
+        let (Some(s1), Some(s2)) = (s1, s2) else {
+            return;
+        };
+        if !s1.alive || !s2.alive {
+            return;
+        }
+
+        let mut playground_cfg = self.cfg.clone();
+        playground_cfg.max_depth = self.playground_depth.max(1);
+        let started = Instant::now();
+        let ai_decision = decide_move_debug(
+            AgentState {
+                body: snake_ai::model::FastBody::from_vec(&s2.body),
+                health: s2.health,
+            },
+            AgentState {
+                body: snake_ai::model::FastBody::from_vec(&s1.body),
+                health: s1.health,
+            },
+            self.sim_state.board.food.clone(),
+            self.sim_state.board.width,
+            self.sim_state.board.height,
+            &playground_cfg,
+        );
+        self.last_move_ms = started.elapsed().as_secs_f64() * 1000.0;
+        self.pv_line = ai_decision.pv;
+        self.pv_index = 0;
+    }
+
     pub(super) fn step_playground(&mut self) {
+        self.pv_line.clear();
+        self.pv_index = 0;
+
         let s1 = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s1").cloned();
         let s2 = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s2").cloned();
         let (Some(s1), Some(s2)) = (s1, s2) else {
@@ -131,6 +168,103 @@ impl SnakeGuiApp {
                 self.set_player_dir(dir);
             }
         }
+    }
+
+    pub(super) fn load_scenario_from_path(&mut self) {
+        self.load_error = None;
+        let path = std::path::Path::new(&self.scenario_load_path);
+        let json_str = match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(e) => {
+                self.load_error = Some(format!("File error: {}", e));
+                return;
+            }
+        };
+        let v: serde_json::Value = match serde_json::from_str(&json_str) {
+            Ok(v) => v,
+            Err(e) => {
+                self.load_error = Some(format!("JSON err: {}", e));
+                return;
+            }
+        };
+
+        if let Some(state) = Self::parse_scenario_to_state(&v) {
+            self.sim_state = state;
+            self.pv_line.clear();
+            self.pv_index = 0;
+            self.load_error = None;
+            self.log_line(format!("Loaded scenario: {}", path.display()));
+        } else {
+            self.load_error = Some("Failed to parse scenario JSON".to_owned());
+        }
+    }
+
+    fn parse_scenario_to_state(json: &serde_json::Value) -> Option<snake_domain::GameState> {
+        let board = json.get("board")?;
+        let width = board.get("width")?.as_i64()? as i32;
+        let height = board.get("height")?.as_i64()? as i32;
+
+        let mut food = Vec::new();
+        if let Some(f_arr) = board.get("food").and_then(|v| v.as_array()) {
+            for f in f_arr {
+                let x = f.get("x")?.as_i64()? as i32;
+                let y = f.get("y")?.as_i64()? as i32;
+                food.push(Point { x, y });
+            }
+        }
+
+        let mut snakes = Vec::new();
+        if let Some(s_arr) = board.get("snakes").and_then(|v| v.as_array()) {
+            for (i, s) in s_arr.iter().enumerate() {
+                let original_id = s.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                let is_ai = original_id == "ai-snake-for-test" || i == 0;
+                let new_id = if is_ai { "s2" } else { "s1" };
+
+                let health = s.get("health").and_then(|v| v.as_i64()).unwrap_or(100) as i32;
+                let mut body = Vec::new();
+                if let Some(b_arr) = s.get("body").and_then(|v| v.as_array()) {
+                    for b in b_arr {
+                        let x = b.get("x")?.as_i64()? as i32;
+                        let y = b.get("y")?.as_i64()? as i32;
+                        body.push(Point { x, y });
+                    }
+                }
+                snakes.push(snake_domain::Snake::new(new_id, new_id, body, health));
+            }
+        }
+
+        Some(snake_domain::GameState {
+            turn: 0,
+            seed: 0,
+            board: snake_domain::Board {
+                width,
+                height,
+                food,
+                snakes,
+            },
+        })
+    }
+
+    pub(super) fn get_projected_state(&self) -> snake_domain::GameState {
+        let mut state = self.sim_state.clone();
+        let mut rng = self.sim_rng.clone();
+        let s1_id = SnakeId("s1".to_owned());
+        let s2_id = SnakeId("s2".to_owned());
+
+        let max_turns = self.pv_line.len() / 2;
+        let turns_to_simulate = self.pv_index.min(max_turns);
+
+        let mut p_idx = 0;
+        for _ in 0..turns_to_simulate {
+            let m_s2 = self.pv_line.get(p_idx).copied().unwrap_or(Direction::Up);
+            let m_s1 = self.pv_line.get(p_idx + 1).copied().unwrap_or(Direction::Up);
+            p_idx += 2;
+
+            let intents = vec![(s2_id.clone(), m_s2), (s1_id.clone(), m_s1)];
+            let _ = simulate_turn(&mut state, &intents, &mut rng, SimConfig::default());
+        }
+
+        state
     }
 
     fn get_line_path(from: (i32, i32), to: (i32, i32)) -> Vec<(i32, i32)> {
@@ -246,10 +380,17 @@ impl SnakeGuiApp {
     }
 
     pub(super) fn draw_playground_board(&mut self, ui: &mut egui::Ui) {
+        let display_state = if self.pv_index > 0 {
+            self.get_projected_state()
+        } else {
+            self.sim_state.clone()
+        };
+
         let (width, height, food, snakes) = {
-            let b = &self.sim_state.board;
+            let b = &display_state.board;
             (b.width, b.height, b.food.clone(), b.snakes.clone())
         };
+
         let desired = Vec2::new(ui.available_width(), ui.available_height().max(280.0));
         let (rect, response) = ui.allocate_exact_size(desired, egui::Sense::click_and_drag());
         let painter = ui.painter_at(rect);

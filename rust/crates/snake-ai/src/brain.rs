@@ -21,6 +21,7 @@ pub struct Decision {
     pub score: f64,
     pub log: String,
     pub root_children: Vec<RootChildRecord>,
+    pub pv: Vec<Direction>,
 }
 
 struct BrainMemory {
@@ -98,7 +99,7 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
 
     let num_threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
 
-    let (selected, score, root_children, aggregated_stats) = std::thread::scope(|s| {
+    let (selected, score, root_children, pv, aggregated_stats) = std::thread::scope(|s| {
         let mut handles = vec![];
 
         for thread_id in 0..num_threads {
@@ -121,9 +122,24 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
                 let mut buffers = SearchBuffers::new(size);
 
                 let res = negamax(
-                    &mut t_grid, &mut t_me, &mut t_enemy, &mut t_foods, Some(&t_dist_map),
-                    t_cfg.max_depth, f64::NEG_INFINITY, f64::INFINITY, 0, t_cfg.max_depth,
-                    initial_hash, &mut history, &t_cfg, t_tt, &t_zobrist, 0, &mut buffers, thread_id
+                    &mut t_grid,
+                    &mut t_me,
+                    &mut t_enemy,
+                    &mut t_foods,
+                    Some(&t_dist_map),
+                    t_cfg.max_depth,
+                    f64::NEG_INFINITY,
+                    f64::INFINITY,
+                    0,
+                    t_cfg.max_depth,
+                    initial_hash,
+                    &mut history,
+                    &t_cfg,
+                    t_tt,
+                    &t_zobrist,
+                    0,
+                    &mut buffers,
+                    thread_id,
                 );
 
                 // Return search result + this thread's profiler stats
@@ -156,12 +172,12 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
                     .mv
                     .map(|m| m.dir)
                     .unwrap_or_else(|| fallback_move(&grid, &me, &mut fallback_buffers));
-                primary_res = Some((mv, res.score, res.children));
+                primary_res = Some((mv, res.score, res.children, res.pv.moves[0..res.pv.len].to_vec()));
             }
         }
 
-        let (best_move, score, children) = primary_res.unwrap();
-        (best_move, score, children, total_stats)
+        let (best_move, score, children, pv) = primary_res.unwrap();
+        (best_move, score, children, pv, total_stats)
     });
 
     crate::PERF_STATS.with(|s| *s.borrow_mut() = aggregated_stats);
@@ -191,5 +207,6 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
         score,
         log,
         root_children,
+        pv,
     }
 }

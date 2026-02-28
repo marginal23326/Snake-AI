@@ -73,6 +73,18 @@ impl SnakeGuiApp {
     }
 
     fn show_playground_tab(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Scenario JSON:");
+            ui.text_edit_singleline(&mut self.scenario_load_path);
+            if ui.button("Load").clicked() {
+                self.load_scenario_from_path();
+            }
+            if let Some(err) = &self.load_error {
+                ui.colored_label(Color32::RED, err);
+            }
+        });
+        ui.separator();
+
         let s1 = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s1");
         let s2 = self.sim_state.board.snakes.iter().find(|s| s.id.0 == "s2");
         ui.horizontal(|ui| {
@@ -105,6 +117,9 @@ impl SnakeGuiApp {
         ui.separator();
 
         ui.horizontal(|ui| {
+            if ui.button("Evaluate AI").clicked() {
+                self.evaluate_ai();
+            }
             if ui.button("Step (Space)").clicked() {
                 self.step_playground();
             }
@@ -134,7 +149,7 @@ impl SnakeGuiApp {
                         }
                     }
                 });
-            ui.label("Player direction (WASD / Arrows)");
+            ui.label("Player direction");
         });
 
         ui.horizontal(|ui| {
@@ -152,6 +167,35 @@ impl SnakeGuiApp {
                 self.edit_mode = EditMode::Erase;
             }
         });
+
+        if !self.pv_line.is_empty() {
+            let max_turns = self.pv_line.len() / 2;
+            
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.label(format!("Projected Turns (max {}):", max_turns));
+                
+                if ui.button("<<").clicked() { self.pv_index = 0; }
+                if ui.button("<").clicked() { self.pv_index = self.pv_index.saturating_sub(1); }
+                
+                ui.add(egui::DragValue::new(&mut self.pv_index).range(0..=max_turns));
+                
+                if ui.button(">").clicked() { self.pv_index = (self.pv_index + 1).min(max_turns); }
+                if ui.button(">>").clicked() { self.pv_index = max_turns; }
+            });
+
+            let mut moves_str = String::new();
+            for (i, chunk) in self.pv_line.chunks(2).take(6).enumerate() {
+                if chunk.len() == 2 {
+                    if i > 0 { moves_str.push_str(" | "); }
+                    moves_str.push_str(&format!("{} vs {}", chunk[0].as_upper(), chunk[1].as_upper()));
+                }
+            }
+            if self.pv_line.len() / 2 > 6 {
+                moves_str.push_str(" ...");
+            }
+            ui.label(format!("PV: {}", moves_str));
+        }
 
         ui.separator();
         self.draw_playground_board(ui);

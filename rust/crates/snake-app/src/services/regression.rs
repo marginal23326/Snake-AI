@@ -103,6 +103,10 @@ pub fn run_regression_suite(mut cfg: AiConfig, options: RegressionOptions) -> Re
                             child.mv.dir, child.modified_score, child.raw_recursion_score, child.collision_penalty, child.ate
                         );
                     }
+
+                    let pv_str = decision.pv.iter().take(12).map(|d| d.as_upper()).collect::<Vec<_>>().join(" -> ");
+                    println!("  PV: {}", pv_str);
+
                     println!(
                         "{} {file_name}: expected {}, got {}.",
                         colorize_red("FAIL"),

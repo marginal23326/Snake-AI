@@ -12,6 +12,33 @@ use crate::{
 const QUIESCENCE_MAX_EXTENSIONS: usize = 8;
 
 #[derive(Debug, Clone)]
+pub struct PvLine {
+    pub moves: [Direction; 64],
+    pub len: usize,
+}
+
+impl Default for PvLine {
+    fn default() -> Self {
+        Self {
+            moves: [Direction::Up; 64],
+            len: 0,
+        }
+    }
+}
+
+impl PvLine {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn push(&mut self, dir: Direction) {
+        if self.len < 64 {
+            self.moves[self.len] = dir;
+            self.len += 1;
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct RootChildRecord {
     pub mv: TtMove,
     pub raw_recursion_score: f64,
@@ -25,6 +52,7 @@ pub struct SearchResult {
     pub score: f64,
     pub mv: Option<TtMove>,
     pub children: Vec<RootChildRecord>,
+    pub pv: PvLine,
 }
 
 struct MoveList {
@@ -125,7 +153,12 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         }
 
         if is_safe {
-            list.push(TtMove { x: nx, y: ny, dir, dir_int });
+            list.push(TtMove {
+                x: nx,
+                y: ny,
+                dir,
+                dir_int,
+            });
         }
     }
 
@@ -226,20 +259,30 @@ pub fn negamax(
             if (entry.depth as usize) >= depth {
                 match entry.flag {
                     TtFlag::Exact => {
+                        let mut pv = PvLine::new();
+                        if let Some(m) = entry.mv {
+                            pv.push(m.dir);
+                        }
                         return SearchResult {
                             score: entry.score,
                             mv: entry.mv,
                             children: Vec::new(),
+                            pv,
                         };
                     }
                     TtFlag::LowerBound => alpha = alpha.max(entry.score),
                     TtFlag::UpperBound => beta = beta.min(entry.score),
                 }
                 if alpha >= beta {
+                    let mut pv = PvLine::new();
+                    if let Some(m) = entry.mv {
+                        pv.push(m.dir);
+                    }
                     return SearchResult {
                         score: entry.score,
                         mv: entry.mv,
                         children: Vec::new(),
+                        pv,
                     };
                 }
             }
@@ -251,6 +294,7 @@ pub fn negamax(
             score: cfg.scores.loss - depth as f64,
             mv: None,
             children: Vec::new(),
+            pv: PvLine::new(),
         };
     }
     if enemy.body.is_empty() || enemy.health <= 0 {
@@ -258,6 +302,7 @@ pub fn negamax(
             score: cfg.scores.win + depth as f64,
             mv: None,
             children: Vec::new(),
+            pv: PvLine::new(),
         };
     }
 
@@ -294,6 +339,7 @@ pub fn negamax(
             score,
             mv: None,
             children: Vec::new(),
+            pv: PvLine::new(),
         };
     }
 
@@ -301,12 +347,13 @@ pub fn negamax(
     let head = me.body.head();
     let head_idx = (head.y * grid.width + head.x) as usize;
     let mut move_list = get_safe_neighbors(grid, me, enemy);
-    
+
     if move_list.count == 0 {
         return SearchResult {
             score: cfg.scores.loss - depth as f64,
             mv: None,
             children: Vec::new(),
+            pv: PvLine::new(),
         };
     }
 
@@ -358,6 +405,7 @@ pub fn negamax(
     let mut best_move = moves[0];
     let mut best_score = f64::NEG_INFINITY;
     let mut best_tie_break = f64::NEG_INFINITY;
+    let mut best_pv = PvLine::new();
 
     for (i, &mv) in moves.iter().enumerate() {
         let mut collision_penalty = 0.0;
@@ -470,19 +518,46 @@ pub fn negamax(
             ms + root_bonus
         };
 
-        // PRINCIPAL VARIATION SEARCH
-        let mut child_score;
+        let mut child_score = 0.0;
+        let mut child_pv = PvLine::new();
+
         if i == 0 {
+            // PV Move
             let child = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
             child_score = child.score;
+            child_pv = child.pv;
         } else {
-            let child = negamax(grid, enemy, me, food, None, depth - 1, -alpha - 1e-5, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
-            child_score = child.score;
-            
-            let temp_mod = calc_mod_score(child_score);
-            if temp_mod > alpha && temp_mod < beta {
-                let child_re = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
-                child_score = child_re.score;
+            let mut needs_full_search = true;
+
+            // LMR
+            if depth >= 5 && !ate_food && collision_penalty == 0.0 && kill_threat_bonus == 0.0 {
+                let r = 1;
+                
+                let child_lmr = negamax(grid, enemy, me, food, None, depth - 1 - r, -alpha - 1e-5, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
+                
+                let temp_mod_lmr = calc_mod_score(child_lmr.score);
+                
+                let is_massive_win = temp_mod_lmr > 50_000_000.0;
+
+                if temp_mod_lmr < alpha - 1e-5 && !is_massive_win {
+                    child_score = child_lmr.score;
+                    child_pv = child_lmr.pv;
+                    needs_full_search = false;
+                }
+            }
+
+            // PVS ZERO-WINDOW SEARCH
+            if needs_full_search {
+                let child = negamax(grid, enemy, me, food, None, depth - 1, -alpha - 1e-5, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
+                child_score = child.score;
+                child_pv = child.pv;
+                
+                let temp_mod = calc_mod_score(child_score);
+                if temp_mod > alpha && temp_mod < beta {
+                    let child_re = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
+                    child_score = child_re.score;
+                    child_pv = child_re.pv;
+                }
             }
         }
 
@@ -494,7 +569,7 @@ pub fn negamax(
         }
 
         if let Some(idx) = ate_food_idx {
-            food.push(snake_domain::Point { x: mv.x, y: mv.y });
+            food.push(Point { x: mv.x, y: mv.y });
             let last = food.len() - 1;
             food.swap(idx, last);
         }
@@ -519,6 +594,7 @@ pub fn negamax(
             best_score = modified_score;
             best_move = mv;
             best_tie_break = tie_break;
+            best_pv = child_pv;
         }
         if best_score > alpha {
             alpha = best_score;
@@ -538,9 +614,16 @@ pub fn negamax(
     };
     tt.set(current_hash, depth, best_score, tt_flag, Some(best_move));
 
+    let mut final_pv = PvLine::new();
+    final_pv.push(best_move.dir);
+    for i in 0..best_pv.len {
+        final_pv.push(best_pv.moves[i]);
+    }
+
     SearchResult {
         score: best_score,
         mv: Some(best_move),
         children: child_records,
+        pv: final_pv,
     }
 }
