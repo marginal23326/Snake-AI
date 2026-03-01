@@ -52,7 +52,7 @@ impl BitBoard {
 
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
-        self.0[0] == 0 && self.0[1] == 0 && self.0[2] == 0 && self.0[3] == 0 && self.0[4] == 0 && self.0[5] == 0 && self.0[6] == 0
+        (self.0[0] | self.0[1] | self.0[2] | self.0[3] | self.0[4] | self.0[5] | self.0[6]) == 0
     }
 
     #[inline(always)]
