@@ -1,6 +1,28 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeConfig {
+    /// Search worker threads. `0` means auto (uses available CPU parallelism).
+    pub threads: usize,
+    /// Transposition table size in MiB. `0` means auto (depth-based sizing).
+    pub hash_mb: usize,
+}
+
+impl RuntimeConfig {
+    pub const DEFAULT_THREADS: usize = 0;
+    pub const DEFAULT_HASH_MB: usize = 0;
+}
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            threads: Self::DEFAULT_THREADS,
+            hash_mb: Self::DEFAULT_HASH_MB,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FoodCurveConfig {
     pub intensity: f64,
     pub threshold: f64,
@@ -31,6 +53,8 @@ pub struct AiConfig {
     pub dense_tail_race_occupancy: f64,
     #[serde(default)]
     pub debug_logging: bool,
+    #[serde(default)]
+    pub runtime: RuntimeConfig,
     pub scores: ScoreConfig,
 }
 
@@ -40,6 +64,7 @@ impl Default for AiConfig {
             max_depth: 16,
             dense_tail_race_occupancy: 0.5,
             debug_logging: false,
+            runtime: RuntimeConfig::default(),
             scores: ScoreConfig {
                 win: 1_000_000_000.0,
                 loss: -1_000_000_000.0,

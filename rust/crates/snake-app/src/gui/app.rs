@@ -2,6 +2,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use eframe::egui::{self, Color32, Vec2};
+use snake_ai::AiConfig;
 
 use super::state::SnakeGuiApp;
 
@@ -27,7 +28,7 @@ impl eframe::App for SnakeGuiApp {
     }
 }
 
-pub fn run_gui() -> Result<()> {
+pub fn run_gui(cfg: AiConfig) -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size(Vec2::new(1024.0, 576.0))
@@ -39,7 +40,7 @@ pub fn run_gui() -> Result<()> {
     eframe::run_native(
         "Snake Lab Rust",
         options,
-        Box::new(|cc| {
+        Box::new(move |cc| {
             cc.egui_ctx.style_mut(|style| {
                 style.visuals = egui::Visuals::dark();
                 style.visuals.override_text_color = Some(Color32::from_rgb(214, 227, 240));
@@ -48,7 +49,7 @@ pub fn run_gui() -> Result<()> {
                 style.visuals.widgets.active.bg_fill = Color32::from_rgb(36, 90, 128);
                 style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(34, 56, 72);
             });
-            Ok(Box::new(SnakeGuiApp::new()))
+            Ok(Box::new(SnakeGuiApp::new(cfg.clone())))
         }),
     )
     .map_err(|e| anyhow!(e.to_string()))?;

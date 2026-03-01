@@ -85,7 +85,7 @@ pub(super) struct SnakeGuiApp {
 }
 
 impl SnakeGuiApp {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(cfg: AiConfig) -> Self {
         let rust_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .and_then(|p| p.parent())
@@ -94,7 +94,6 @@ impl SnakeGuiApp {
         let scenario_dir = default_scenario_dir(&rust_root);
         let (state, rng) = build_playground_state(16, 9, 1);
 
-        let cfg = AiConfig::default();
         Self {
             playground_depth: cfg.max_depth.max(1),
             cfg,

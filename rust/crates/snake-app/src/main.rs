@@ -11,7 +11,7 @@ use std::{
 
 use anyhow::Result;
 use clap::{ArgAction, Args, Parser, Subcommand};
-use snake_ai::AiConfig;
+use snake_ai::{AiConfig, RuntimeConfig};
 use snake_api::normalize_api_type;
 use tracing_subscriber::EnvFilter;
 
@@ -19,16 +19,40 @@ use crate::{
     gui::run_gui,
     server::run_server,
     services::{
-        ArenaOptions, RegressionOptions, RegressionOutput, TrainerOptions, default_scenario_dir, format_arena_progress_line, format_arena_summary_report,
-        format_opponent_roster, parse_arena_find_modes, parse_depths, run_arena_with_progress, run_regression_suite, run_trainer,
+        ArenaOptions, RegressionOptions, RegressionOutput, TrainerOptions, default_scenario_dir, format_arena_progress_line,
+        format_arena_summary_report, format_opponent_roster, parse_arena_find_modes, parse_depths, run_arena_with_progress,
+        run_regression_suite, run_trainer,
     },
 };
 
 #[derive(Debug, Parser)]
 #[command(name = "snake-app", version, about = "Snake Lab Rust: GUI + CLI runners")]
 struct Cli {
+    #[command(flatten)]
+    runtime: RuntimeCliArgs,
+
     #[command(subcommand)]
     command: Option<Command>,
+}
+
+#[derive(Debug, Clone, Args)]
+struct RuntimeCliArgs {
+    #[arg(
+        long,
+        global = true,
+        default_value_t = RuntimeConfig::DEFAULT_THREADS,
+        help = "AI search threads (0 = auto)"
+    )]
+    threads: usize,
+    #[arg(
+        long = "hash-mb",
+        alias = "tt-mb",
+        alias = "hashSize",
+        global = true,
+        default_value_t = RuntimeConfig::DEFAULT_HASH_MB,
+        help = "Transposition table size in MiB (0 = auto)"
+    )]
+    hash_mb: usize,
 }
 
 #[derive(Debug, Subcommand)]
@@ -39,7 +63,7 @@ enum Command {
         host: String,
         #[arg(long, default_value_t = 9000)]
         port: u16,
-        
+
         #[arg(long)]
         debug_perf: bool,
     },
@@ -65,7 +89,7 @@ struct TestCliArgs {
 impl TestCliArgs {
     fn into_runtime(self, rust_root: &Path) -> RegressionOptions {
         let scenario_dir = self.scenario_dir.unwrap_or_else(|| default_scenario_dir(rust_root));
-        
+
         // Map CLI flags to explicit Enum state
         let output = RegressionOutput::from_flags(self.quiet, self.quiet_fail_only);
 
@@ -386,6 +410,11 @@ fn boolish(v: u8) -> bool {
     v != 0
 }
 
+fn apply_runtime_config(cfg: &mut AiConfig, runtime: &RuntimeCliArgs) {
+    cfg.runtime.threads = runtime.threads;
+    cfg.runtime.hash_mb = runtime.hash_mb;
+}
+
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive("info".parse().unwrap()))
@@ -396,9 +425,10 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let command = cli.command.unwrap_or(Command::Gui);
     let mut base_cfg = AiConfig::default();
+    apply_runtime_config(&mut base_cfg, &cli.runtime);
 
     match command {
-        Command::Gui => run_gui()?,
+        Command::Gui => run_gui(base_cfg)?,
         Command::Server { host, port, debug_perf } => {
             base_cfg.debug_logging = debug_perf;
 

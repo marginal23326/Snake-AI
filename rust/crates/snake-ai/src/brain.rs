@@ -39,6 +39,33 @@ fn get_tt() -> &'static RwLock<TranspositionTable> {
     GLOBAL_TT.get_or_init(|| RwLock::new(TranspositionTable::new(1 << 22)))
 }
 
+fn depth_based_tt_entries(max_depth: usize) -> usize {
+    match max_depth {
+        0..=4 => 1 << 15,   // 32k entries (~2MB)
+        5..=8 => 1 << 17,   // 128k entries (~8MB)
+        9..=12 => 1 << 19,  // 512k entries (~32MB)
+        13..=20 => 1 << 21, // 2M entries (~128MB)
+        _ => 1 << 22,       // 4M entries (~256MB)
+    }
+}
+
+fn resolve_tt_entries(cfg: &AiConfig) -> usize {
+    if cfg.runtime.hash_mb > 0 {
+        let entries = TranspositionTable::entries_for_hash_mb(cfg.runtime.hash_mb);
+        if entries > 0 {
+            return entries;
+        }
+    }
+    depth_based_tt_entries(cfg.max_depth)
+}
+
+fn resolve_thread_count(cfg: &AiConfig) -> usize {
+    if cfg.runtime.threads > 0 {
+        return cfg.runtime.threads;
+    }
+    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+}
+
 fn fallback_move(grid: &Grid, me: &AgentState, buffers: &mut SearchBuffers) -> Direction {
     if me.body.is_empty() {
         return Direction::Up;
@@ -82,13 +109,7 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
         (z, hash)
     });
 
-    let tt_size = match cfg.max_depth {
-        0..=4  => 1 << 15, // 32k entries (~2MB)
-        5..=8  => 1 << 17, // 128k entries (~8MB)
-        9..=12 => 1 << 19, // 512k entries (~32MB)
-        13..=20 => 1 << 21, // 2M entries (~128MB)
-        _ => 1 << 22,      // 4M entries (~256MB)
-    };
+    let tt_size = resolve_tt_entries(cfg);
 
     let tt_lock = get_tt();
     {
@@ -97,7 +118,7 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
     }
     let tt = tt_lock.read().unwrap();
 
-    let num_threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+    let num_threads = resolve_thread_count(cfg);
 
     let (selected, score, root_children, pv, aggregated_stats) = std::thread::scope(|s| {
         let mut handles = vec![];

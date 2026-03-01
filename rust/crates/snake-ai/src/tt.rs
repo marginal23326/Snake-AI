@@ -1,5 +1,6 @@
 use snake_domain::Direction;
 use std::cell::UnsafeCell;
+use std::mem;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,12 +95,28 @@ impl TranspositionTable {
         } else {
             requested_size.next_power_of_two()
         };
-        let size = size.min(self.entries.len());
+        if size > self.entries.len() {
+            self.entries.resize(size, TtSlot::default());
+        }
         self.mask = size - 1;
 
         self.generation = self.generation.wrapping_add(1);
         if self.generation == 0 {
             self.generation = 1;
+        }
+    }
+
+    pub fn entries_for_hash_mb(hash_mb: usize) -> usize {
+        if hash_mb == 0 {
+            return 0;
+        }
+        let bytes = hash_mb.saturating_mul(1024 * 1024);
+        let entry_size = mem::size_of::<TtSlot>().max(1);
+        let entries = (bytes / entry_size).max(1);
+        if entries.is_power_of_two() {
+            entries
+        } else {
+            entries.next_power_of_two()
         }
     }
 

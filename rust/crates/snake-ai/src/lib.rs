@@ -12,7 +12,7 @@ pub mod voronoi;
 pub mod zobrist;
 
 pub use brain::{Decision, decide_move_debug};
-pub use config::{AiConfig, ScoreConfig};
+pub use config::{AiConfig, RuntimeConfig, ScoreConfig};
 pub use model::AgentState;
 
 use std::cell::RefCell;
