@@ -36,7 +36,7 @@ thread_local! {
 static GLOBAL_TT: OnceLock<RwLock<TranspositionTable>> = OnceLock::new();
 
 fn get_tt() -> &'static RwLock<TranspositionTable> {
-    GLOBAL_TT.get_or_init(|| RwLock::new(TranspositionTable::new(1 << 20)))
+    GLOBAL_TT.get_or_init(|| RwLock::new(TranspositionTable::new(1 << 22)))
 }
 
 fn fallback_move(grid: &Grid, me: &AgentState, buffers: &mut SearchBuffers) -> Direction {
@@ -83,11 +83,11 @@ pub fn decide_move_debug(me: AgentState, enemy: AgentState, foods: Vec<Point>, c
     });
 
     let tt_size = match cfg.max_depth {
-        0..=2 => 1 << 10,
-        3..=4 => 1 << 14,
-        5..=6 => 1 << 16,
-        7..=8 => 1 << 18,
-        _ => 1 << 20,
+        0..=4  => 1 << 15, // 32k entries (~2MB)
+        5..=8  => 1 << 17, // 128k entries (~8MB)
+        9..=12 => 1 << 19, // 512k entries (~32MB)
+        13..=20 => 1 << 21, // 2M entries (~128MB)
+        _ => 1 << 22,      // 4M entries (~256MB)
     };
 
     let tt_lock = get_tt();
