@@ -23,7 +23,7 @@ where
 {
     let started = Instant::now();
     let opponent = resolve_opponent(&options.opponent, options.self_play, &cfg, options.api_flavor);
-    
+
     let match_cfg = MatchRunConfig {
         width: options.width,
         height: options.height,

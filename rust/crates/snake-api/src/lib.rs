@@ -194,8 +194,6 @@ fn format_snake_for_standard(snake: &Snake) -> Value {
     })
 }
 
-
-
 fn build_standard_payload(state: &GameState, you_id: &str, game_id: &str, timeout: u32) -> Value {
     let snakes = state.board.snakes.iter().map(format_snake_for_standard).collect::<Vec<_>>();
     let you = state
@@ -205,7 +203,7 @@ fn build_standard_payload(state: &GameState, you_id: &str, game_id: &str, timeou
         .find(|s| s.id.0 == you_id)
         .map(format_snake_for_standard)
         .unwrap_or_else(|| json!({ "id": you_id, "body": [] }));
-    
+
     json!({
         "game": {
             "id": game_id,

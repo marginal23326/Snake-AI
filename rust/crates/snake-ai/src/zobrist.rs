@@ -61,10 +61,8 @@ impl Zobrist {
     pub unsafe fn xor_unchecked(&self, current_hash: u64, x: i32, y: i32, piece: i8) -> u64 {
         let idx = (y * self.width + x) as usize;
         let p_idx = piece as usize;
-        
-        unsafe {
-            current_hash ^ *self.table.get_unchecked(idx).get_unchecked(p_idx)
-        }
+
+        unsafe { current_hash ^ *self.table.get_unchecked(idx).get_unchecked(p_idx) }
     }
 
     #[inline(always)]

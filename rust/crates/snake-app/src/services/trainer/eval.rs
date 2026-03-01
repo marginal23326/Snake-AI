@@ -18,7 +18,7 @@ pub(super) async fn evaluate_candidate_with_matchups(
         height: options.height,
         max_turns: options.max_turns,
         request_timeout_ms: 2000,
-        payload_timeout_ms: 50
+        payload_timeout_ms: 50,
     };
 
     for matchup in matchups {

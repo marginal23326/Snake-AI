@@ -12,7 +12,7 @@ use snake_io::{Expectation, load_scenarios_from_dir};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RegressionOutput {
     #[default]
-    Full,         // Headers, Passes, Fails, Summaries
+    Full, // Headers, Passes, Fails, Summaries
     Summary,      // Headers, Fails, Summaries (No individual passes)
     FailuresOnly, // Only Fails (No headers or summaries)
     Silent,       // Nothing
@@ -74,7 +74,7 @@ pub struct RegressionSummary {
 pub fn run_regression_suite(mut cfg: AiConfig, options: RegressionOptions) -> Result<RegressionSummary> {
     let scenarios = load_scenarios_from_dir(&options.scenario_dir)
         .with_context(|| format!("failed to load scenarios from {}", options.scenario_dir.display()))?;
-    
+
     let depths = if options.depths.is_empty() {
         vec![cfg.max_depth]
     } else {
@@ -134,7 +134,7 @@ pub fn run_regression_suite(mut cfg: AiConfig, options: RegressionOptions) -> Re
                             child.mv.dir, child.modified_score, child.raw_recursion_score, child.collision_penalty, child.ate
                         );
                     }
-                    
+
                     let pv_str = decision.pv.iter().take(12).map(|d| d.as_upper()).collect::<Vec<_>>().join(" -> ");
                     println!("  PV: {}", pv_str);
 

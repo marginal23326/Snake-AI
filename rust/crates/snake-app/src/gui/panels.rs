@@ -171,24 +171,34 @@ impl SnakeGuiApp {
 
         if !self.pv_line.is_empty() {
             let max_turns = self.pv_line.len() / 2;
-            
+
             ui.separator();
             ui.horizontal(|ui| {
                 ui.label(format!("Projected Turns (max {}):", max_turns));
-                
-                if ui.button("<<").clicked() { self.pv_index = 0; }
-                if ui.button("<").clicked() { self.pv_index = self.pv_index.saturating_sub(1); }
-                
+
+                if ui.button("<<").clicked() {
+                    self.pv_index = 0;
+                }
+                if ui.button("<").clicked() {
+                    self.pv_index = self.pv_index.saturating_sub(1);
+                }
+
                 ui.add(egui::DragValue::new(&mut self.pv_index).range(0..=max_turns));
-                
-                if ui.button(">").clicked() { self.pv_index = (self.pv_index + 1).min(max_turns); }
-                if ui.button(">>").clicked() { self.pv_index = max_turns; }
+
+                if ui.button(">").clicked() {
+                    self.pv_index = (self.pv_index + 1).min(max_turns);
+                }
+                if ui.button(">>").clicked() {
+                    self.pv_index = max_turns;
+                }
             });
 
             let mut moves_str = String::new();
             for (i, chunk) in self.pv_line.chunks(2).take(6).enumerate() {
                 if chunk.len() == 2 {
-                    if i > 0 { moves_str.push_str(" | "); }
+                    if i > 0 {
+                        moves_str.push_str(" | ");
+                    }
                     moves_str.push_str(&format!("{} vs {}", chunk[0].as_upper(), chunk[1].as_upper()));
                 }
             }
