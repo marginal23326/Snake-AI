@@ -335,6 +335,9 @@ pub fn negamax(
         } else {
             -evaluate(grid, enemy, me, food, dist_map, cfg, buffers)
         };
+
+        tt.set(current_hash, 0, score, TtFlag::Exact, None);
+
         return SearchResult {
             score,
             mv: None,
@@ -445,26 +448,35 @@ pub fn negamax(
         me.health = new_health;
         me.body.push_front(Point { x: mv.x, y: mv.y });
 
-        let cell_id: i8 = if side == 0 { 2 } else { 3 };
+        let cell_id: i8 = 2 + side as i8;
 
         next_hash = zobrist.xor_health(next_hash, old_health, new_health, side == 0);
-        next_hash = zobrist.xor(next_hash, mv.x, mv.y, original_head_val);
-        next_hash = zobrist.xor(next_hash, mv.x, mv.y, cell_id);
+        if original_head_val != 0 {
+            unsafe {
+                next_hash = zobrist.xor_unchecked(next_hash, mv.x, mv.y, original_head_val);
+            }
+        }
+        unsafe {
+            next_hash = zobrist.xor_unchecked(next_hash, mv.x, mv.y, cell_id);
+        }
 
         if !ate_food {
-            let tail = me.body.pop_back();
+            let tail = me.body.pop_back(); 
             popped_tail = Some(tail);
+            
             if tail.x != mv.x || tail.y != mv.y {
                 let original_tail_val = grid.get(tail.x, tail.y);
                 if original_tail_val == cell_id {
-                    grid.set(tail.x, tail.y, 0);
+                    unsafe { grid.set_unchecked(tail.x, tail.y, 0); }
                     tail_restore = Some((tail.x, tail.y, original_tail_val));
                 }
-                next_hash = zobrist.xor(next_hash, tail.x, tail.y, cell_id);
+                unsafe {
+                    next_hash = zobrist.xor_unchecked(next_hash, tail.x, tail.y, cell_id);
+                }
             }
         }
 
-        grid.set(mv.x, mv.y, cell_id);
+        unsafe { grid.set_unchecked(mv.x, mv.y, cell_id); }
 
         let mut ate_food_idx = None;
         if ate_food {
@@ -563,9 +575,9 @@ pub fn negamax(
 
         let modified_score = calc_mod_score(child_score);
 
-        grid.set(mv.x, mv.y, original_head_val);
+        unsafe { grid.set_unchecked(mv.x, mv.y, original_head_val); }
         if let Some((tx, ty, tv)) = tail_restore {
-            grid.set(tx, ty, tv);
+            unsafe { grid.set_unchecked(tx, ty, tv); }
         }
 
         if let Some(idx) = ate_food_idx {

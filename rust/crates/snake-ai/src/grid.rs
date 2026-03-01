@@ -74,6 +74,22 @@ impl Grid {
     }
 
     #[inline(always)]
+    pub unsafe fn set_unchecked(&mut self, x: i32, y: i32, val: i8) {
+        let idx = (y * self.width + x) as usize;
+
+        self.food.unset(idx);
+        self.my_body.unset(idx);
+        self.enemy_body.unset(idx);
+
+        match val {
+            1 => self.food.set(idx),
+            2 => self.my_body.set(idx),
+            3 => self.enemy_body.set(idx),
+            _ => {}
+        }
+    }
+
+    #[inline(always)]
     pub fn is_safe(&self, x: i32, y: i32) -> bool {
         if x < 0 || y < 0 || x >= self.width || y >= self.height {
             return false;

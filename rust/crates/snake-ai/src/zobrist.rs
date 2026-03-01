@@ -58,12 +58,13 @@ impl Zobrist {
     }
 
     #[inline(always)]
-    pub fn xor(&self, current_hash: u64, x: i32, y: i32, piece: i8) -> u64 {
-        if !(1..=3).contains(&piece) || x < 0 || y < 0 || x >= self.width || y >= self.height {
-            return current_hash;
-        }
+    pub unsafe fn xor_unchecked(&self, current_hash: u64, x: i32, y: i32, piece: i8) -> u64 {
         let idx = (y * self.width + x) as usize;
-        current_hash ^ self.table[idx][piece as usize]
+        let p_idx = piece as usize;
+        
+        unsafe {
+            current_hash ^ *self.table.get_unchecked(idx).get_unchecked(p_idx)
+        }
     }
 
     #[inline(always)]
