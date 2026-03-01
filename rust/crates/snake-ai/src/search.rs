@@ -461,13 +461,15 @@ pub fn negamax(
         }
 
         if !ate_food {
-            let tail = me.body.pop_back(); 
+            let tail = me.body.pop_back();
             popped_tail = Some(tail);
-            
+
             if tail.x != mv.x || tail.y != mv.y {
                 let original_tail_val = grid.get(tail.x, tail.y);
                 if original_tail_val == cell_id {
-                    unsafe { grid.set_unchecked(tail.x, tail.y, 0); }
+                    unsafe {
+                        grid.set_unchecked(tail.x, tail.y, 0);
+                    }
                     tail_restore = Some((tail.x, tail.y, original_tail_val));
                 }
                 unsafe {
@@ -476,7 +478,9 @@ pub fn negamax(
             }
         }
 
-        unsafe { grid.set_unchecked(mv.x, mv.y, cell_id); }
+        unsafe {
+            grid.set_unchecked(mv.x, mv.y, cell_id);
+        }
 
         let mut ate_food_idx = None;
         if ate_food {
@@ -548,7 +552,7 @@ pub fn negamax(
                 let child_lmr = negamax(grid, enemy, me, food, None, depth - 1 - r, -alpha - 1e-5, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
                 
                 let temp_mod_lmr = calc_mod_score(child_lmr.score);
-                
+
                 let is_massive_win = temp_mod_lmr > 50_000_000.0;
 
                 if temp_mod_lmr < alpha - 1e-5 && !is_massive_win {
@@ -563,7 +567,7 @@ pub fn negamax(
                 let child = negamax(grid, enemy, me, food, None, depth - 1, -alpha - 1e-5, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
                 child_score = child.score;
                 child_pv = child.pv;
-                
+
                 let temp_mod = calc_mod_score(child_score);
                 if temp_mod > alpha && temp_mod < beta {
                     let child_re = negamax(grid, enemy, me, food, None, depth - 1, -beta, -alpha, 1 - side, root_depth, next_hash, history_table, cfg, tt, zobrist, q_depth, buffers, thread_id);
@@ -575,9 +579,13 @@ pub fn negamax(
 
         let modified_score = calc_mod_score(child_score);
 
-        unsafe { grid.set_unchecked(mv.x, mv.y, original_head_val); }
+        unsafe {
+            grid.set_unchecked(mv.x, mv.y, original_head_val);
+        }
         if let Some((tx, ty, tv)) = tail_restore {
-            unsafe { grid.set_unchecked(tx, ty, tv); }
+            unsafe {
+                grid.set_unchecked(tx, ty, tv);
+            }
         }
 
         if let Some(idx) = ate_food_idx {

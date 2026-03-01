@@ -23,7 +23,7 @@ pub fn compute_voronoi(grid: &Grid, my_head: Point, enemy_head: Point, _buffers:
 fn compute_voronoi_inner(grid: &Grid, my_head: Point, enemy_head: Point) -> VoronoiResult {
     let mut my_front = BitBoard::with_bit(grid.idx(my_head.x, my_head.y));
     let mut en_front = BitBoard::with_bit(grid.idx(enemy_head.x, enemy_head.y));
-    
+
     let mut my_territory = BitBoard::empty();
     let mut en_territory = BitBoard::empty();
 
@@ -35,24 +35,24 @@ fn compute_voronoi_inner(grid: &Grid, my_head: Point, enemy_head: Point) -> Voro
         en_front = ctx.expand(en_front) & !visited;
 
         let ties = my_front & en_front;
-        
-        my_front ^= ties; 
+
+        my_front ^= ties;
         en_front ^= ties;
 
         let active = my_front | en_front;
-        
+
         if active.is_empty() {
             break;
         }
 
         my_territory |= my_front;
         en_territory |= en_front;
-        
+
         visited |= active | ties;
     }
 
-    VoronoiResult { 
-        my_count: my_territory.count_ones() as i32, 
-        enemy_count: en_territory.count_ones() as i32 
+    VoronoiResult {
+        my_count: my_territory.count_ones() as i32,
+        enemy_count: en_territory.count_ones() as i32,
     }
 }
