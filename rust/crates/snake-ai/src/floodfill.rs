@@ -88,7 +88,7 @@ fn flood_fill_inner(
             has_food = true;
         }
 
-        let expanded_all = grid.ctx.expand(front) & !visited;
+        let expanded_all = grid.ctx.expand_neighbors(front) & !visited;
 
         let mut hits = expanded_all & (my_mask | en_mask);
         while let Some(idx) = hits.pop_first() {

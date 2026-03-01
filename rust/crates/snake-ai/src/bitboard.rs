@@ -324,9 +324,9 @@ impl SearchContext {
         (b & self.not_right_edge) << 1
     }
 
-    /// O(1) Expansion step. Replaces the while loop of a normal Floodfill!
+    /// Returns the four cardinal neighbors of the given frontier bitset.
     #[inline(always)]
-    pub fn expand(&self, b: BitBoard) -> BitBoard {
-        b | self.up(b) | self.down(b) | self.left(b) | self.right(b)
+    pub fn expand_neighbors(&self, b: BitBoard) -> BitBoard {
+        self.up(b) | self.down(b) | self.left(b) | self.right(b)
     }
 }

@@ -31,8 +31,9 @@ fn compute_voronoi_inner(grid: &Grid, my_head: Point, enemy_head: Point) -> Voro
     let ctx = &grid.ctx;
 
     loop {
-        my_front = ctx.expand(my_front) & !visited;
-        en_front = ctx.expand(en_front) & !visited;
+        let unvisited = !visited;
+        my_front = ctx.expand_neighbors(my_front) & unvisited;
+        en_front = ctx.expand_neighbors(en_front) & unvisited;
 
         let ties = my_front & en_front;
 

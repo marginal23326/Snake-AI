@@ -27,7 +27,7 @@ fn get_food_distance_map_inner(grid: &Grid) -> Vec<i16> {
 
     while current_front.any() {
         dist += 1;
-        current_front = grid.ctx.expand(current_front) & safe_cells & !visited;
+        current_front = grid.ctx.expand_neighbors(current_front) & safe_cells & !visited;
         visited |= current_front;
 
         let mut temp = current_front;
