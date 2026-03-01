@@ -110,6 +110,10 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
     let mut opp_tail = None;
     let mut opp_tail_stacked = false;
     let mut enemy_can_eat = false;
+    let occ = grid.occupied();
+    let width = grid.width;
+    let height = grid.height;
+    let food = grid.food;
 
     if opp_body.len() > 1 {
         let tail = opp_body.last();
@@ -118,10 +122,15 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
         opp_tail_stacked = tail == prev;
 
         let eh = opp_body.head();
-        let eh_idx = grid.idx(eh.x, eh.y);
-        let eh_bb = crate::bitboard::BitBoard::with_bit(eh_idx);
-        if (grid.ctx.expand(eh_bb) & grid.food).any() {
-            enemy_can_eat = true;
+        let eat_check = [(eh.x, eh.y), (eh.x, eh.y + 1), (eh.x, eh.y - 1), (eh.x - 1, eh.y), (eh.x + 1, eh.y)];
+        for (x, y) in eat_check {
+            if x >= 0 && y >= 0 && x < width && y < height {
+                let idx = (y * width + x) as usize;
+                if food.get(idx) {
+                    enemy_can_eat = true;
+                    break;
+                }
+            }
         }
     }
 
@@ -135,7 +144,11 @@ fn get_safe_neighbors_inner(grid: &Grid, me: &AgentState, enemy: &AgentState) ->
     for (dx, dy, dir, dir_int) in dirs {
         let nx = head.x + dx;
         let ny = head.y + dy;
-        let mut is_safe = grid.is_safe(nx, ny);
+        let mut is_safe = false;
+        if nx >= 0 && ny >= 0 && nx < width && ny < height {
+            let idx = (ny * width + nx) as usize;
+            is_safe = !occ.get(idx);
+        }
 
         if !is_safe {
             if let Some(my_tail_pos) = my_tail {
