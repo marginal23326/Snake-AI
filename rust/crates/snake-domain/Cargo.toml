@@ -1,8 +1,0 @@
-[package]
-name = "snake-domain"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-
-[dependencies]
-serde = { version = "1.0.228", features = ["derive"] }

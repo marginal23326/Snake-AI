@@ -1,19 +1,5 @@
 # Folder Layout
 
-## Rust Rewrite
-
-The Rust rewrite now lives in [`rust/`](./rust).
-
-Use the Rust app for the new architecture, GUI, and runners:
-
-- `cargo run -p snake-app -- gui`
-- `cargo run -p snake-app -- server --port=9000`
-- `cargo run -p snake-app -- arena --games=20 --opponent=local`
-- `cargo run -p snake-app -- test --depths=6`
-- `cargo run -p snake-app -- trainer --gens=25 --pop=30`
-
-Legacy JS files are kept for reference/parity checks.
-
 - `src/ai/*.js`: Core AI modules used by browser + server logic.
 - `src/ai/runners/`: Runnable scripts and services.
   - `arena.js`
